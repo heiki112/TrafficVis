@@ -1,0 +1,41 @@
+.clickable {
+	position: absolute;
+	top: 92%;
+	left: 30%;
+	right: 2%;
+    border: 1px solid #333;
+    background: #eee;
+}
+
+.progress {
+    position:absolute;
+    left:0;
+    top:0;
+    background:green;
+}
+
+.mainArea {
+	position: absolute;
+	top: 4%;
+	right: 2%;
+	bottom: 8%;
+	left: 2%;
+	z-index: 0;
+}
+
+#overlay {
+	pointer-events: none;
+}
+
+#taskbar {
+	position: absolute;
+	bottom: 96%;
+	left: 2%;
+}
+
+#buttons {
+	position: absolute;
+	top: 92%;
+	left: 2%;
+	right: 70%
+}
