@@ -91,7 +91,7 @@ var step = function() {
 	camera.updateProjectionMatrix();
 	
 	//var scale = (camera.right - camera.left)/200;
-	var scale = $('#overlay').height()/30;
+	var scale = $('#overlay').height()/20;
 	material.uniforms[ 'scale' ].value = scale;
 	
 	if(time >= objects[0].coords.length){
