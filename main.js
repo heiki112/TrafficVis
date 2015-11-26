@@ -91,8 +91,6 @@ var step = function() {
 	camera.updateProjectionMatrix();
 	
 	//var scale = (camera.right - camera.left)/200;
-	var scale = $('#overlay').height()/20;
-	material.uniforms[ 'scale' ].value = scale;
 	
 	if(time >= objects[0].coords.length){
 		play = false;
@@ -162,7 +160,7 @@ var createGeometry = function() {
 		uniforms: {
 			texture: { type: "t", value: THREE.ImageUtils.loadTexture( "/textures/spark1.png" ) },
 			timeInterpolate: { type: 'f', value: 0.0 },
-			scale: { type: 'f', value: 1.0 },
+			scale: { type: 'f', value: $('#overlay').height()/20 },
 			flip: { type: 'f', value: 1.0 }
 		},
 		blending: THREE.AdditiveBlending,
@@ -248,6 +246,10 @@ var onResize = function( event ) {
 	var width = $('#overlay').width();
 	var height = $('#overlay').height();
 	renderer.setSize(width, height);
+	
+	var scale = $('#overlay').height()/20;
+	if(material.uniforms != undefined)
+		material.uniforms[ 'scale' ].value = scale;
 }
 
 
