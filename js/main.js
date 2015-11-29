@@ -155,6 +155,9 @@ var step = function() {
 }
 
 var setTime = function(factor) {
+	if(typeof particleObjects === 'undefined' || particleObjects == {})
+		return;
+	
 	ended = false;
 	var resume = play;
 	if(resume)
@@ -262,7 +265,6 @@ var setTimeBar = function() {
 }
 
 var reset = function() {
-	stop();
 	setTime(0);
 	$('.progress').width(0);
 	prevT = new Date().getTime();
