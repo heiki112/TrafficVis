@@ -24,8 +24,6 @@ function init() {
 
 		var offset = $div.offset();
 		var x = ev.clientX - offset.left;
-		$('.progress').width(x);
-		
 		var factor = x/$('.clickable').width();
 		if(factor < 0)
 			factor = 0;
@@ -146,8 +144,7 @@ var step = function() {
 			particleMesh.geometry.attributes.posTimeEnd.needsUpdate = true;
 		}
 		
-		//Timebar
-		$('.progress').width(time/updater.maxTime() * $('.clickable').width());
+		setTimeBar();
 	}
 	
 	renderer.render(scene, camera);
@@ -161,12 +158,17 @@ var setTime = function(factor) {
 		stop();
 	
 	showLoading(true);
-	var newTime = updater.set(factor);
+	time = updater.set(factor);
 	for(var p in particleObjects){
 		var particle = particleObjects[p];
-		particle.setTime(newTime);
-		
 		var id = particle.id;
+		particle.setTime(time);
+		if(!particle.visible) {
+			particleMesh.geometry.attributes.posTimeStart.array[id*3] = particleMesh.geometry.attributes.posTimeEnd.array[id*3] = 0;
+			particleMesh.geometry.attributes.posTimeStart.array[id*3+1] = particleMesh.geometry.attributes.posTimeEnd.array[id*3+1] = 0;
+			particleMesh.geometry.attributes.posTimeStart.array[id*3+2] = particleMesh.geometry.attributes.posTimeEnd.array[id*3+2] = 0;
+			continue;
+		}
 		var currentPos = particle.getThisCoordTime();
 		particleMesh.geometry.attributes.posTimeStart.array[id*3] = currentPos.lon;
 		particleMesh.geometry.attributes.posTimeStart.array[id*3+1] = currentPos.lat;
@@ -183,7 +185,8 @@ var setTime = function(factor) {
 	particleMesh.geometry.attributes.posTimeEnd.needsUpdate = true;
 	
 	showLoading(false);
-	time = updater.minTime() + factor*(updater.maxTime()-updater.minTime());
+	material.uniforms[ 'time' ].value = time;
+	setTimeBar();
 	if(resume)
 		start();
 }
@@ -251,14 +254,29 @@ var showLoading = function(b) {
 		$('#loading').hide();
 }
 
+var setTimeBar = function() {
+	$('.progress').width((time-updater.minTime())/(updater.maxTime()-updater.minTime()) * $('.clickable').width());
+}
+
 var reset = function() {
+	stop();
 	setTime(0);
 	$('.progress').width(0);
 	prevT = new Date().getTime();
 }
 
+var startStop = function() {
+	if(play)
+		stop();
+	else
+		start();
+}
+
 var start = function() {
 	if(!play && ready) {
+		$('#startStop').html("&#10074; &#10074;");
+		$("#startStop").css("fontSize", "70%");
+		
 		$('.progress').css('background', 'green');
 		if(ended)
 			reset();
@@ -269,6 +287,9 @@ var start = function() {
 }
 
 var stop = function() {
+	$('#startStop').html("&#9658");
+	$("#startStop").css("fontSize", "80%");
+	
 	$('.progress').css('background', 'yellow');
 	play = false;
 }

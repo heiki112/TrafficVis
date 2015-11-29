@@ -8,6 +8,7 @@ var Particle = function(name) {
 	this.name = name;
 	this.id = _generator++;
 	this.coords = [];
+	this.visible = false;
 	
 	this._counter = 0;
 	
@@ -22,6 +23,13 @@ var Particle = function(name) {
 	}
 	
 	Particle.prototype.setTime = function(time) {
+		if(this.coords[0].time > time){
+			this.visible = false;
+			return;
+		}
+		
+		this._counter = 0;
+		
 		//binary search
 		var startIndex = 0;
         var stopIndex = this.coords.length - 1;
@@ -40,6 +48,8 @@ var Particle = function(name) {
 			this._counter = middle;
 		else
 			this._counter = ++middle;
+		
+		this.visible = true;
 	}
 }
 
@@ -107,7 +117,7 @@ var Updater = function() {
 	}
 	
 	Updater.prototype.set = function(factor) {
-		var targetTime = (this.updateTimes[this.updateCounterMax-1] - this.updateTimes[0])*factor;
+		var targetTime = this.minTime() + factor*(this.maxTime()-this.minTime());
 		
 		//binary search
 		var startIndex = 0;
@@ -126,8 +136,7 @@ var Updater = function() {
 			this.updateCounter = middle;
 		else
 			this.updateCounter = ++middle;
-		
-		return this.updateTimes[this.updateCounter];
+		return targetTime;
 	}
 	
 	Updater.prototype.minTime = function() {
