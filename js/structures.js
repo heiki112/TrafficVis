@@ -1,4 +1,6 @@
-//
+//Variables and functions starting with "_" are intended for internal use.
+
+//********** Particle **********
 var _generator = 0;
 var _count = 0;
 
@@ -17,6 +19,27 @@ var Particle = function(name) {
 	
 	Particle.prototype.getNextCoordTime = function() {
 		return this.coords[this._counter++];
+	}
+	
+	Particle.prototype.setTime = function(time) {
+		//binary search
+		var startIndex = 0;
+        var stopIndex = this.coords.length - 1;
+        var middle = Math.floor((stopIndex + startIndex)/2);
+
+		while(this.coords[middle].time != time && startIndex < stopIndex){
+			if (time < this.coords[middle].time)
+				stopIndex = middle - 1;
+			else if (time > this.coords[middle].time)
+				startIndex = middle + 1;
+
+			middle = Math.floor((stopIndex + startIndex)/2);
+		}
+
+		if(this.coords[middle].time <= time || typeof this.coords[middle+1] === 'undefined')
+			this._counter = middle;
+		else
+			this._counter = ++middle;
 	}
 }
 
@@ -37,14 +60,14 @@ Particle.count = function() {
 	return _count;
 }
 
-//
+//********** Coordinate - time **********
 var CoordinateTime = function(lonLat, time) {
 	this.lon = lonLat[0];
 	this.lat = lonLat[1];
 	this.time = time;
 }
 
-//
+//********** Updater **********
 var Updater = function() {
 	this.updateCounter = 0;
 	this.updateCounterMax;
@@ -62,7 +85,7 @@ var Updater = function() {
 	
 	Updater.prototype.prepare = function() {
 		this.updateCounterMax = this.updateTimes.length;
-		this.updateTimes.sort(sortNumber);
+		this.updateTimes.sort(_sortNumber);
 	}
 	
 	Updater.prototype.reset = function() {
@@ -82,8 +105,40 @@ var Updater = function() {
 		else
 			return [];
 	}
+	
+	Updater.prototype.set = function(factor) {
+		var targetTime = (this.updateTimes[this.updateCounterMax-1] - this.updateTimes[0])*factor;
+		
+		//binary search
+		var startIndex = 0;
+        var stopIndex = this.updateCounterMax-1;
+        var middle = Math.floor((stopIndex + startIndex)/2);
+
+		while(this.updateTimes[middle] != targetTime && startIndex < stopIndex){
+			if (targetTime < this.updateTimes[middle])
+				stopIndex = middle - 1;
+			else if (targetTime > this.updateTimes[middle])
+				startIndex = middle + 1;
+
+			middle = Math.floor((stopIndex + startIndex)/2);
+		}
+		if(this.updateTimes[middle] <= targetTime || typeof this.updateTimes[middle+1] === 'undefined')
+			this.updateCounter = middle;
+		else
+			this.updateCounter = ++middle;
+		
+		return this.updateTimes[this.updateCounter];
+	}
+	
+	Updater.prototype.minTime = function() {
+		return this.updateTimes[0];
+	}
+	
+	Updater.prototype.maxTime = function() {
+		return this.updateTimes[this.updateCounterMax-1];
+	}
 }
 
-var sortNumber = function(a,b) {
+var _sortNumber = function(a,b) {
     return a - b;
 }

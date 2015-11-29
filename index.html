@@ -68,15 +68,20 @@
 	<div id="overlay" class="mainArea" ></div>
 	
 	<div id="buttons">
-		<button onclick="reset()">Reset</button>
-		<button onclick="slower()">Slower</button>
-		<button onclick="start()">Play</button>
-		<button onclick="stop()">Stop</button>
-		<button onclick="faster()">Faster</button>
+		<button id="reset" onclick="reset()">Reset</button>
+		<button id="slower" onclick="slower()">Slower</button>
+		<button id="start" onclick="start()">Play</button>
+		<button id="stop" onclick="stop()">Stop</button>
+		<button id="faster" onclick="faster()">Faster</button>
+		<div id="speed">Playback speed: 1x</div>
 	</div>
 	
 	<div class='clickable'>
-			<div class="progress"></div>
+		<div class="progress"></div>
+	</div>
+	
+	<div id="loading">
+		<img src="/images/ajax-loader.gif">
 	</div>
 	
 </body>

@@ -11,7 +11,7 @@
     position:absolute;
     left:0;
     top:0;
-    background:green;
+    background:yellow;
 }
 
 .mainArea {
@@ -21,6 +21,16 @@
 	bottom: 8%;
 	left: 2%;
 	z-index: 0;
+}
+
+#loading {
+	display:none;
+	position: fixed;
+    left: 50%;
+    top: 50%;
+	margin-top: -50px;
+	margin-left: -50px;
+	pointer-events: none;
 }
 
 #overlay {
@@ -37,5 +47,5 @@
 	position: absolute;
 	top: 92%;
 	left: 2%;
-	right: 70%
+	right: 70%;
 }

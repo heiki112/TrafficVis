@@ -1,5 +1,6 @@
 var play = false;
 var ready = false;
+var ended = false;
 var mouse;
 
 var time, prevT;
@@ -25,13 +26,13 @@ function init() {
 		var x = ev.clientX - offset.left;
 		$('.progress').width(x);
 		
-		var percentage = x/$('.clickable').width();
-		if(percentage < 0)
-			percentage = 0;
-		else if(percentage > 1)
-			percentage = 1;
+		var factor = x/$('.clickable').width();
+		if(factor < 0)
+			factor = 0;
+		else if(factor > 1)
+			factor = 1;
 		
-		//setTime(percentage * particleObjects[0].coords.length);
+		setTime(factor);
 	});
 	
 	setupMap();
@@ -39,6 +40,7 @@ function init() {
 	
 	document.getElementById('file').onchange = function(){
 		ready = false;
+		showLoading(true);
 		var file = this.files[0];
 			
 		updater = new Updater();
@@ -90,7 +92,7 @@ function init() {
 				reset();
 				
 				ready = true;
-				console.log("ready");
+				showLoading(false);
 				step();
 				return;
 			}
@@ -121,11 +123,10 @@ var step = function() {
 	if(play) {
 		time += deltaTime*timestep;
 		material.uniforms[ 'time' ].value = time;
-		//Timebar
-		//$('.progress').width(flooredTime/particleObjects[0].coords.length * $('.clickable').width());
 		var updates = updater.get(time);
 		if(typeof updates === 'undefined'){
-			play = false;
+			ended = true;
+			stop();
 		} else {
 			for(var i = 0; i < updates.length; i++) {
 				var particle = particleObjects[updates[i]];
@@ -144,10 +145,47 @@ var step = function() {
 			particleMesh.geometry.attributes.posTimeStart.needsUpdate = true;
 			particleMesh.geometry.attributes.posTimeEnd.needsUpdate = true;
 		}
+		
+		//Timebar
+		$('.progress').width(time/updater.maxTime() * $('.clickable').width());
 	}
 	
 	renderer.render(scene, camera);
 	window.requestAnimationFrame(step);
+}
+
+var setTime = function(factor) {
+	ended = false;
+	var resume = play;
+	if(resume)
+		stop();
+	
+	showLoading(true);
+	var newTime = updater.set(factor);
+	for(var p in particleObjects){
+		var particle = particleObjects[p];
+		particle.setTime(newTime);
+		
+		var id = particle.id;
+		var currentPos = particle.getThisCoordTime();
+		particleMesh.geometry.attributes.posTimeStart.array[id*3] = currentPos.lon;
+		particleMesh.geometry.attributes.posTimeStart.array[id*3+1] = currentPos.lat;
+		particleMesh.geometry.attributes.posTimeStart.array[id*3+2] = currentPos.time;
+		
+		var nextPos = particle.getNextCoordTime();
+		if(typeof nextPos === 'undefined')
+			nextPos = currentPos;
+		particleMesh.geometry.attributes.posTimeEnd.array[id*3] = nextPos.lon;
+		particleMesh.geometry.attributes.posTimeEnd.array[id*3+1] = nextPos.lat;
+		particleMesh.geometry.attributes.posTimeEnd.array[id*3+2] = nextPos.time;
+	}
+	particleMesh.geometry.attributes.posTimeStart.needsUpdate = true;
+	particleMesh.geometry.attributes.posTimeEnd.needsUpdate = true;
+	
+	showLoading(false);
+	time = updater.minTime() + factor*(updater.maxTime()-updater.minTime());
+	if(resume)
+		start();
 }
 
 var createGeometry = function() {
@@ -174,7 +212,7 @@ var setupOverlay = function() {
 	
 	material = new THREE.ShaderMaterial({
 		uniforms: {
-			texture: { type: "t", value: loader.load( "/textures/spark1.png" ) },
+			texture: { type: "t", value: loader.load( "/images/spark1.png" ) },
 			time: { type: 'f', value: 0.0 },
 			scale: { type: 'f', value: $('#overlay').height()/20 }
 		},
@@ -206,43 +244,24 @@ var setupOverlay = function() {
 }
 
 // ************ CONTROLS ************
-var setTime = function(newTime) {
-	return;
-	play = false;
-	particleMesh.geometry.attributes.lonLat1.array = updates[newTime];
-	particleMesh.geometry.attributes.lonLat1.needsUpdate = true;
-	particleMesh.geometry.attributes.lonLat2.array = updates[newTime+1];
-	particleMesh.geometry.attributes.lonLat2.needsUpdate = true;
-	time = newTime;
-	material.uniforms[ 'flip' ].value = 1.0;
-	play = true;
+var showLoading = function(b) {
+	if(b)
+		$('#loading').show();
+	else
+		$('#loading').hide();
 }
 
 var reset = function() {
-	time = updater.updateTimes[0];
-	Particle.reset(particleObjects);
-	var initialPositions = updater.reset();
-	for(var i = 0; i < initialPositions.length; i++){
-		var particle = particleObjects[initialPositions[i]];
-		var id = particle.id;
-		var initialPos = particle.getThisCoordTime();
-		particleMesh.geometry.attributes.posTimeStart.array[id*3] = initialPos.lon;
-		particleMesh.geometry.attributes.posTimeStart.array[id*3+1] = initialPos.lat;
-		particleMesh.geometry.attributes.posTimeStart.array[id*3+2] = initialPos.time;
-		
-		var nextPos = particle.getNextCoordTime();
-		particleMesh.geometry.attributes.posTimeEnd.array[id*3] = nextPos.lon;
-		particleMesh.geometry.attributes.posTimeEnd.array[id*3+1] = nextPos.lat;
-		particleMesh.geometry.attributes.posTimeEnd.array[id*3+2] = nextPos.time;
-	}
-	particleMesh.geometry.attributes.posTimeStart.needsUpdate = true;
-	particleMesh.geometry.attributes.posTimeEnd.needsUpdate = true;
+	setTime(0);
+	$('.progress').width(0);
+	prevT = new Date().getTime();
 }
 
 var start = function() {
 	if(!play && ready) {
-		//if(time >= particleObjects[0].coords.length)
-			//reset();
+		$('.progress').css('background', 'green');
+		if(ended)
+			reset();
 
 		prevT = new Date().getTime();
 		play = true;
@@ -250,15 +269,28 @@ var start = function() {
 }
 
 var stop = function() {
+	$('.progress').css('background', 'yellow');
 	play = false;
 }
 
 var slower = function() {
 	timestep /= 2;
+	$("#speed").html("Playback speed: " + timestep + "x");
+	
+	if(timestep <= 0.125)
+		$('#slower').prop("disabled",true);
+	
+	$('#faster').prop("disabled",false);
 }
 
 var faster = function() {
 	timestep *= 2;
+	$("#speed").html("Playback speed: " + timestep + "x");
+	
+	if(timestep >= 2048)
+		$('#faster').prop("disabled",true);
+	
+	$('#slower').prop("disabled",false);
 }
 
 
@@ -272,6 +304,10 @@ var onMouseMove = function( event ) {
 var onResize = function( event ) {
 	var width = $('#overlay').width();
 	var height = $('#overlay').height();
+	
+	$('.clickable').height($('#buttons').height());
+	$('.progress').height($('#buttons').height());
+	
 	renderer.setSize(width, height);
 	
 	var scale = $('#overlay').height()/20;
