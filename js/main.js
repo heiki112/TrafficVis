@@ -218,7 +218,7 @@ var setupOverlay = function() {
 	
 	material = new THREE.ShaderMaterial({
 		uniforms: {
-			texture: { type: "t", value: loader.load( "/images/spark1.png" ) },
+			texture: { type: "t", value: loader.load( "images/spark1.png" ) },
 			time: { type: 'f', value: 0.0 },
 			scale: { type: 'f', value: $('#overlay').height()/20 }
 		},
