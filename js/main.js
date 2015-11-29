@@ -37,6 +37,9 @@ function init() {
 	setupOverlay();
 	
 	document.getElementById('file').onchange = function(){
+		if(typeof this.files[0] === 'undefined'){
+			return;
+		}
 		ready = false;
 		showLoading(true);
 		var file = this.files[0];
