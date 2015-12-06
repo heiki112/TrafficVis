@@ -48,6 +48,10 @@ var Particle = function(name) {
 		this.visible = true;
 	}
 	
+	Particle.prototype.sortCoords = function() {
+		this.coords.sort(CoordinateTime.sort);
+	}
+	
 	Particle.reset = function() {
 		Particle.prototype.count = 0;
 	}
@@ -63,4 +67,8 @@ var CoordinateTime = function(lonLat, time) {
 	this.lon = lonLat[0];
 	this.lat = lonLat[1];
 	this.time = time;
+	
+	CoordinateTime.sort = function(ct1, ct2) {
+		return ct1.time - ct2.time;
+	}
 }

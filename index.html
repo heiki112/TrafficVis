@@ -23,7 +23,7 @@
 	const vec2 zero = vec2(0.0, 0.0);
 	
 	void main() {
-		if(posTimeStart.xy == zero && posTimeEnd.xy == zero)
+		if(posTimeStart.xy == zero || posTimeEnd.xy == zero)
 			return;
 		
 		gl_PointSize = scale;

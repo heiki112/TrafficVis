@@ -182,8 +182,11 @@ var setupFileRead = function() {
 			
 			// End of file
 			if (eof) {
-				createMesh();
+				for(var p in particleObjects) {
+					particleObjects[p].sortCoords();
+				}
 				
+				createMesh();
 				reset();
 				ready = true;
 				showLoading(false);
