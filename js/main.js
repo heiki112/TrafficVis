@@ -1,41 +1,129 @@
+//animation flow booleans
 var play = false;
 var ready = false;
-var ended = false;
-var mouse;
 
-var time, prevT;
-var timestep = 1;
-var updater;
+//time variables
+var time, prevTime, minTime, maxTime;
+var timestep = 1; //speed
 
-var map, mainLayer;
-var fromProj, toProj;
-
+//particles
 var particleObjects;
 
+//WebGL things
 var loader, renderer, scene, camera, particleMesh, material;
 var vertexShader, fragmentShader;
 
-function init() {
-	$('.clickable').height($('#buttons').height());
-	$('.progress').height($('#buttons').height());
-	
-	$('.clickable').bind('click', function (ev) {
-		var $div = $(ev.target);
+//Map variables
+var map, mainLayer;
+var fromProj, toProj;
 
-		var offset = $div.offset();
-		var x = ev.clientX - offset.left;
-		var factor = x/$('.clickable').width();
-		if(factor < 0)
-			factor = 0;
-		else if(factor > 1)
-			factor = 1;
-		
-		setTime(factor);
-	});
-	
+//mouse coordinates, currently unused
+var mouse;
+
+
+var init = function() {
+	setupTimeBar();
 	setupMap();
 	setupOverlay();
+	setupFileRead();
+}
+
+var mainLoop = function() {
+	if(!ready)
+		return;
 	
+	setCameraExtent();
+	if(play) {
+		var newTime = new Date().getTime();
+		var deltaTime = newTime - prevTime;
+		prevTime = newTime;
+		time += deltaTime*timestep;
+		material.uniforms['time'].value = time;
+		
+		if(time >= maxTime)
+			stop();
+		
+		setTime();
+	}
+	
+	renderer.render(scene, camera);
+	window.requestAnimationFrame(mainLoop);
+}
+
+var setCameraExtent = function() {
+	var extent = map.getView().calculateExtent(map.getSize());
+	
+	//Camera bounds
+	camera.left = extent[0];
+	camera.right = extent[2];
+	camera.top = extent[3];
+	camera.bottom = extent[1];
+	camera.updateProjectionMatrix();
+}
+
+var setTime = function() {
+	if(typeof particleObjects === 'undefined' || particleObjects == {})
+		return;
+	
+	var resume = play;
+	if(resume)
+		stop();
+	
+	showLoading(true);
+	for(var p in particleObjects){
+		var particle = particleObjects[p];
+		var id = particle.id;
+		particle.setTime(time);
+		if(!particle.visible) {
+			particleMesh.geometry.attributes.posTimeStart.array[id*3] = particleMesh.geometry.attributes.posTimeEnd.array[id*3] = 0;
+			particleMesh.geometry.attributes.posTimeStart.array[id*3+1] = particleMesh.geometry.attributes.posTimeEnd.array[id*3+1] = 0;
+			particleMesh.geometry.attributes.posTimeStart.array[id*3+2] = particleMesh.geometry.attributes.posTimeEnd.array[id*3+2] = 0;
+			continue;
+		}
+		var currentPos = particle.getThisCoordTime();
+		particleMesh.geometry.attributes.posTimeStart.array[id*3] = currentPos.lon;
+		particleMesh.geometry.attributes.posTimeStart.array[id*3+1] = currentPos.lat;
+		particleMesh.geometry.attributes.posTimeStart.array[id*3+2] = currentPos.time;
+		
+		var nextPos = particle.getNextCoordTime();
+		particleMesh.geometry.attributes.posTimeEnd.array[id*3] = nextPos.lon;
+		particleMesh.geometry.attributes.posTimeEnd.array[id*3+1] = nextPos.lat;
+		particleMesh.geometry.attributes.posTimeEnd.array[id*3+2] = nextPos.time;
+	}
+	particleMesh.geometry.attributes.posTimeStart.needsUpdate = true;
+	particleMesh.geometry.attributes.posTimeEnd.needsUpdate = true;
+	
+	showLoading(false);
+	material.uniforms['time'].value = time;
+	updateTimeBar();
+	if(resume)
+		start();
+}
+
+var setTimePercentage = function(p) {
+	if(typeof minTime === 'undefined')
+		return;
+	
+	time = minTime + p * (maxTime - minTime);
+	setTime();
+}
+
+var createMesh = function() {
+	var geometry = new THREE.BufferGeometry();
+	
+	geometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( Particle.getCount() ), 1 ) );	//Unused but required
+	geometry.addAttribute( 'posTimeStart', new THREE.BufferAttribute( new Float32Array( Particle.getCount()*3 ), 3 ) );
+	geometry.addAttribute( 'posTimeEnd', new THREE.BufferAttribute( new Float32Array( Particle.getCount()*3 ), 3 ) );
+	
+	if(typeof particleMesh != 'undefined'){
+		scene.remove(particleMesh);
+	}
+	particleMesh = new THREE.Points( geometry, material );
+	particleMesh.frustumCulled = false;
+	scene.add( particleMesh );
+}
+
+var setupFileRead = function() {
 	document.getElementById('file').onchange = function(){
 		if(typeof this.files[0] === 'undefined'){
 			return;
@@ -43,8 +131,10 @@ function init() {
 		ready = false;
 		showLoading(true);
 		var file = this.files[0];
-			
-		updater = new Updater();
+		
+		//Particle.reset();
+		minTime = Number.MAX_SAFE_INTEGER;
+		maxTime = 0;
 		particleObjects = {};
 		
 		var skipFirst = false;
@@ -73,28 +163,31 @@ function init() {
 				else
 					timeValue = Date.parse(l[timeSlot]);
 				
+				if(timeValue < minTime)
+					minTime = timeValue;
+				if(timeValue > maxTime)
+					maxTime = timeValue;
+				
 				var particle;
 				if(typeof particleObjects[nameValue] === 'undefined'){
 					particle = new Particle(nameValue);
 					particleObjects[nameValue] = particle;
 				}
-				else {
+				else
 					particle = particleObjects[nameValue];
-				}
+				
 				var coordTime = new CoordinateTime(transf([lonValue, latValue]), timeValue);
 				particle.coords.push(coordTime);
-				updater.add(nameValue, timeValue);
 			}
 			
 			// End of file
 			if (eof) {
-				updater.prepare();
-				createGeometry();
-				reset();
+				createMesh();
 				
+				reset();
 				ready = true;
 				showLoading(false);
-				step();
+				mainLoop();
 				return;
 			}
 
@@ -104,114 +197,23 @@ function init() {
 	};
 }
 
-var step = function() {
-	if(!ready){
-		return;
-	}
+var setupTimeBar = function() {
+	$('.clickable').height($('#buttons').height());
+	$('.progress').height($('#buttons').height());
 	
-	var extent = map.getView().calculateExtent(map.getSize());
-	
-	//Camera bounds
-	camera.left = extent[0];
-	camera.right = extent[2];
-	camera.top = extent[3];
-	camera.bottom = extent[1];
-	camera.updateProjectionMatrix();
-	
-	var currentT = new Date().getTime();
-	var deltaTime = currentT - prevT;
-	prevT = currentT;
-	if(play) {
-		time += deltaTime*timestep;
-		material.uniforms[ 'time' ].value = time;
-		var updates = updater.get(time);
-		if(typeof updates === 'undefined'){
-			ended = true;
-			stop();
-		} else {
-			for(var i = 0; i < updates.length; i++) {
-				var particle = particleObjects[updates[i]];
-				var id = particle.id;
-				particleMesh.geometry.attributes.posTimeStart.array[id*3] = particleMesh.geometry.attributes.posTimeEnd.array[id*3];
-				particleMesh.geometry.attributes.posTimeStart.array[id*3+1] = particleMesh.geometry.attributes.posTimeEnd.array[id*3+1];
-				particleMesh.geometry.attributes.posTimeStart.array[id*3+2] = particleMesh.geometry.attributes.posTimeEnd.array[id*3+2];
-				
-				var newPosTime = particle.getNextCoordTime();
-				if(typeof newPosTime != 'undefined'){
-					particleMesh.geometry.attributes.posTimeEnd.array[id*3] = newPosTime.lon;
-					particleMesh.geometry.attributes.posTimeEnd.array[id*3+1] = newPosTime.lat;
-					particleMesh.geometry.attributes.posTimeEnd.array[id*3+2] = newPosTime.time;
-				}
-			}
-			particleMesh.geometry.attributes.posTimeStart.needsUpdate = true;
-			particleMesh.geometry.attributes.posTimeEnd.needsUpdate = true;
-		}
-		
-		setTimeBar();
-	}
-	
-	renderer.render(scene, camera);
-	window.requestAnimationFrame(step);
-}
+	$('.clickable').bind('click', function (ev) {
+		var $div = $(ev.target);
 
-var setTime = function(factor) {
-	if(typeof particleObjects === 'undefined' || particleObjects == {})
-		return;
-	
-	ended = false;
-	var resume = play;
-	if(resume)
-		stop();
-	
-	showLoading(true);
-	time = updater.set(factor);
-	for(var p in particleObjects){
-		var particle = particleObjects[p];
-		var id = particle.id;
-		particle.setTime(time);
-		if(!particle.visible) {
-			particleMesh.geometry.attributes.posTimeStart.array[id*3] = particleMesh.geometry.attributes.posTimeEnd.array[id*3] = 0;
-			particleMesh.geometry.attributes.posTimeStart.array[id*3+1] = particleMesh.geometry.attributes.posTimeEnd.array[id*3+1] = 0;
-			particleMesh.geometry.attributes.posTimeStart.array[id*3+2] = particleMesh.geometry.attributes.posTimeEnd.array[id*3+2] = 0;
-			continue;
-		}
-		var currentPos = particle.getThisCoordTime();
-		particleMesh.geometry.attributes.posTimeStart.array[id*3] = currentPos.lon;
-		particleMesh.geometry.attributes.posTimeStart.array[id*3+1] = currentPos.lat;
-		particleMesh.geometry.attributes.posTimeStart.array[id*3+2] = currentPos.time;
+		var offset = $div.offset();
+		var x = ev.clientX - offset.left;
+		var factor = x/$('.clickable').width();
+		if(factor < 0)
+			factor = 0;
+		else if(factor > 1)
+			factor = 1;
 		
-		var nextPos = particle.getNextCoordTime();
-		if(typeof nextPos === 'undefined')
-			nextPos = currentPos;
-		particleMesh.geometry.attributes.posTimeEnd.array[id*3] = nextPos.lon;
-		particleMesh.geometry.attributes.posTimeEnd.array[id*3+1] = nextPos.lat;
-		particleMesh.geometry.attributes.posTimeEnd.array[id*3+2] = nextPos.time;
-	}
-	particleMesh.geometry.attributes.posTimeStart.needsUpdate = true;
-	particleMesh.geometry.attributes.posTimeEnd.needsUpdate = true;
-	
-	showLoading(false);
-	material.uniforms[ 'time' ].value = time;
-	setTimeBar();
-	if(resume)
-		start();
-}
-
-var createGeometry = function() {
-	//Creating particleMesh: geometry + material
-	
-	var geometry = new THREE.BufferGeometry();
-	
-	geometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( Particle.count() ), 1 ) );	//Unused
-	geometry.addAttribute( 'posTimeStart', new THREE.BufferAttribute( new Float32Array( Particle.count()*3 ), 3 ) );
-	geometry.addAttribute( 'posTimeEnd', new THREE.BufferAttribute( new Float32Array( Particle.count()*3 ), 3 ) );
-	
-	if(typeof particleMesh != 'undefined'){
-		scene.remove(particleMesh);
-	}
-	particleMesh = new THREE.Points( geometry, material );
-	particleMesh.frustumCulled = false;
-	scene.add( particleMesh );
+		setTimePercentage(factor);
+	});
 }
 
 var setupOverlay = function() {
@@ -260,14 +262,17 @@ var showLoading = function(b) {
 		$('#loading').hide();
 }
 
-var setTimeBar = function() {
-	$('.progress').width((time-updater.minTime())/(updater.maxTime()-updater.minTime()) * $('.clickable').width());
+var updateTimeBar = function() {
+	var maxWidth = $('.clickable').width();
+	var newWidth = (time-minTime)/(maxTime-minTime) * maxWidth;
+	if(newWidth > maxWidth)
+		newWidth = maxWidth;
+	$('.progress').width(newWidth);
 }
 
 var reset = function() {
-	setTime(0);
-	$('.progress').width(0);
-	prevT = new Date().getTime();
+	setTimePercentage(0);
+	prevTime = new Date().getTime();
 }
 
 var startStop = function() {
@@ -283,10 +288,10 @@ var start = function() {
 		$("#startStop").css("fontSize", "70%");
 		
 		$('.progress').css('background', 'green');
-		if(ended)
+		if(time >= maxTime)
 			reset();
 
-		prevT = new Date().getTime();
+		prevTime = new Date().getTime();
 		play = true;
 	}
 }
