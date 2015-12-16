@@ -3,7 +3,7 @@ var play = false;
 var ready = false;
 
 //time variables
-var time, prevTime, minTime, maxTime;
+var time, prevTime, maxTime;
 var timestep = 1; //speed
 
 //particles
@@ -20,8 +20,17 @@ var fromProj, toProj;
 //mouse coordinates, currently unused
 var mouse;
 
+//file read variables
+var skipFirst, nameCol, timeCol, latCol, lonCol
+
 
 var init = function() {
+	skipFirst = false;
+	nameCol = 0;
+	timeCol = 1;
+	latCol = 2;
+	lonCol = 3;
+	
 	setupTimeBar();
 	setupMap();
 	setupOverlay();
@@ -38,7 +47,6 @@ var mainLoop = function() {
 		var deltaTime = newTime - prevTime;
 		prevTime = newTime;
 		time += deltaTime*timestep;
-		material.uniforms['time'].value = time;
 		
 		if(time >= maxTime)
 			stop();
@@ -101,10 +109,7 @@ var setTime = function() {
 }
 
 var setTimePercentage = function(p) {
-	if(typeof minTime === 'undefined')
-		return;
-	
-	time = minTime + p * (maxTime - minTime);
+	time = p * maxTime;
 	setTime();
 }
 
@@ -133,18 +138,17 @@ var setupFileRead = function() {
 		var file = this.files[0];
 		
 		//Particle.reset();
-		minTime = Number.MAX_SAFE_INTEGER;
 		maxTime = 0;
+		var minTime = Number.MAX_SAFE_INTEGER;
+		var lonMin = Number.MAX_SAFE_INTEGER;
+		var lonMax = -Number.MAX_SAFE_INTEGER;
+		var latMin = Number.MAX_SAFE_INTEGER;
+		var latMax = -Number.MAX_SAFE_INTEGER;
 		particleObjects = {};
 		
-		var skipFirst = false;
-		var nameSlot = 0;
-		var timeSlot = 1;
-		var latSlot = 2;
-		var lonSlot = 3;
-		
 		var navigator = new FileNavigator(file);
-		navigator.readSomeLines(0, function linesReadHandler(err, index, lines, eof, progress) {
+		
+		navigator.readSomeLines(0, function linesReadHandlerPre(err, index, lines, eof, progress) {
 			// Error happened
 			if (err) return; 
 			
@@ -154,17 +158,48 @@ var setupFileRead = function() {
 					continue;
 				
 				var l = lines[i].split(";");
-				var nameValue = l[nameSlot];
-				var latValue = parseFloat(l[latSlot]);
-				var lonValue = parseFloat(l[lonSlot]);
+				var latValue = parseFloat(l[latCol]);
+				var lonValue = parseFloat(l[lonCol]);
 				var timeValue;
-				if($.isNumeric(l[timeSlot]))
-					timeValue = parseFloat(l[timeSlot]) * 1000;
+				if($.isNumeric(l[timeCol]))
+					timeValue = parseFloat(l[timeCol]) * 1000;
 				else
-					timeValue = Date.parse(l[timeSlot]);
+					timeValue = Date.parse(l[timeCol]);
 				
 				if(timeValue < minTime)
 					minTime = timeValue;
+			}
+			
+			// End of file
+			if (eof) {
+				return;
+			}
+
+			// Reading next chunk, adding number of lines read to first line in current chunk
+			navigator.readSomeLines(index + lines.length, linesReadHandlerPre);
+		});
+		
+		navigator.readSomeLines(0, function linesReadHandlerMain(err, index, lines, eof, progress) {
+			// Error happened
+			if (err) return; 
+			
+			// Reading lines
+			for (var i = skipFirst ? 1 : 0; i < lines.length; i++) {
+				if(lines[i].trim() == "")
+					continue;
+				
+				var l = lines[i].split(";");
+				var nameValue = l[nameCol];
+				var latValue = parseFloat(l[latCol]);
+				var lonValue = parseFloat(l[lonCol]);
+				var timeValue;
+				if($.isNumeric(l[timeCol]))
+					timeValue = parseFloat(l[timeCol]) * 1000;
+				else
+					timeValue = Date.parse(l[timeCol]);
+				
+				timeValue -= minTime;
+				
 				if(timeValue > maxTime)
 					maxTime = timeValue;
 				
@@ -195,7 +230,7 @@ var setupFileRead = function() {
 			}
 
 			// Reading next chunk, adding number of lines read to first line in current chunk
-			navigator.readSomeLines(index + lines.length, linesReadHandler);
+			navigator.readSomeLines(index + lines.length, linesReadHandlerMain);
 		});
 	};
 }
@@ -267,7 +302,7 @@ var showLoading = function(b) {
 
 var updateTimeBar = function() {
 	var maxWidth = $('.clickable').width();
-	var newWidth = (time-minTime)/(maxTime-minTime) * maxWidth;
+	var newWidth = time/maxTime * maxWidth;
 	if(newWidth > maxWidth)
 		newWidth = maxWidth;
 	$('.progress').width(newWidth);
