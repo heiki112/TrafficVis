@@ -21,10 +21,13 @@
 	uniform float scale;
 	
 	const vec2 zero = vec2(0.0, 0.0);
+	const vec4 outOfBounds = vec4(2.0, 0.0, 0.0, 1.0);
 	
 	void main() {
-		if(posTimeStart.xy == zero || posTimeEnd.xy == zero)
+		if(time < posTimeStart.z || time > posTimeEnd.z || posTimeStart.xy == zero || posTimeEnd.xy == zero) {
+			gl_Position = outOfBounds;
 			return;
+		}
 		
 		gl_PointSize = scale;
 		

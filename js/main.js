@@ -1,30 +1,34 @@
-//animation flow booleans
 var play = false;
 var ready = false;
 
 //time variables
-var time, prevTime, maxTime;
+var animationTime, maxAnimationTime, currentChunkTime;	//related to animation time
+var prevRealTime, newRealTime, deltaRealTime; //variables for actual time
 var timestep = 1; //speed
 
-//particles
-var particleObjects;
+//"particle manager"
+var particleManager;
 
 //WebGL things
 var loader, renderer, scene, camera, particleMesh, material;
 var vertexShader, fragmentShader;
 
 //Map variables
-var map, mainLayer;
+var map, extent;
 var fromProj, toProj;
 
 //mouse coordinates, currently unused
-var mouse;
+//var mouse;
 
 //file read variables
 var skipFirst, nameCol, timeCol, latCol, lonCol
 
+//time bar variables
+var maxTimeBarWidth, newTimeBarWidth;
+
 
 var init = function() {
+	//specify file read parameters
 	skipFirst = false;
 	nameCol = 0;
 	timeCol = 1;
@@ -38,28 +42,54 @@ var init = function() {
 }
 
 var mainLoop = function() {
-	if(!ready)
-		return;
-	
+	if(!ready) {
+		if(typeof particleManager != 'undefined' && particleManager.ready) {
+			createMesh(particleManager.maxChunkSize);
+			ready = true;
+			showLoading(false);
+		}
+	}
 	setCameraExtent();
 	if(play) {
-		var newTime = new Date().getTime();
-		var deltaTime = newTime - prevTime;
-		prevTime = newTime;
-		time += deltaTime*timestep;
+		newRealTime = new Date().getTime();
+		deltaRealTime = newRealTime - prevRealTime;
+		prevRealTime = newRealTime;
+		animationTime += deltaRealTime*timestep;
 		
-		if(time >= maxTime)
+		if(animationTime >= maxAnimationTime) {
 			stop();
-		
-		setTime();
+			animationTime = maxAnimationTime;
+		}
 	}
+	
+	if(animationTime >= currentChunkTime + ParticleManager.getChunkTime() || animationTime < currentChunkTime) {
+		getDataChunk();
+	}
+	material.uniforms['time'].value = animationTime;
+	updateTimeBar();
 	
 	renderer.render(scene, camera);
 	window.requestAnimationFrame(mainLoop);
 }
 
+var getDataChunk = function() {
+	var startChunk = particleManager.getStartChunk(animationTime);
+	var endChunk = particleManager.getEndChunk(animationTime);
+	
+	particleMesh.geometry.attributes.posTimeStart.array.set(startChunk);
+	particleMesh.geometry.attributes.posTimeStart.array.fill(0, startChunk.length);
+	
+	particleMesh.geometry.attributes.posTimeEnd.array.set(endChunk);
+	particleMesh.geometry.attributes.posTimeEnd.array.fill(0, endChunk.length);
+	
+	particleMesh.geometry.attributes.posTimeStart.needsUpdate = true;
+	particleMesh.geometry.attributes.posTimeEnd.needsUpdate = true;
+	
+	currentChunkTime = Math.floor(animationTime/ParticleManager.getChunkTime())*ParticleManager.getChunkTime();
+}
+
 var setCameraExtent = function() {
-	var extent = map.getView().calculateExtent(map.getSize());
+	extent = map.getView().calculateExtent(map.getSize());
 	
 	//Camera bounds
 	camera.left = extent[0];
@@ -69,56 +99,12 @@ var setCameraExtent = function() {
 	camera.updateProjectionMatrix();
 }
 
-var setTime = function() {
-	if(typeof particleObjects === 'undefined' || particleObjects == {})
-		return;
-	
-	var resume = play;
-	if(resume)
-		stop();
-	
-	showLoading(true);
-	for(var p in particleObjects){
-		var particle = particleObjects[p];
-		var id = particle.id;
-		particle.setTime(time);
-		if(!particle.visible) {
-			particleMesh.geometry.attributes.posTimeStart.array[id*3] = particleMesh.geometry.attributes.posTimeEnd.array[id*3] = 0;
-			particleMesh.geometry.attributes.posTimeStart.array[id*3+1] = particleMesh.geometry.attributes.posTimeEnd.array[id*3+1] = 0;
-			particleMesh.geometry.attributes.posTimeStart.array[id*3+2] = particleMesh.geometry.attributes.posTimeEnd.array[id*3+2] = 0;
-			continue;
-		}
-		var currentPos = particle.getThisCoordTime();
-		particleMesh.geometry.attributes.posTimeStart.array[id*3] = currentPos.lon;
-		particleMesh.geometry.attributes.posTimeStart.array[id*3+1] = currentPos.lat;
-		particleMesh.geometry.attributes.posTimeStart.array[id*3+2] = currentPos.time;
-		
-		var nextPos = particle.getNextCoordTime();
-		particleMesh.geometry.attributes.posTimeEnd.array[id*3] = nextPos.lon;
-		particleMesh.geometry.attributes.posTimeEnd.array[id*3+1] = nextPos.lat;
-		particleMesh.geometry.attributes.posTimeEnd.array[id*3+2] = nextPos.time;
-	}
-	particleMesh.geometry.attributes.posTimeStart.needsUpdate = true;
-	particleMesh.geometry.attributes.posTimeEnd.needsUpdate = true;
-	
-	showLoading(false);
-	material.uniforms['time'].value = time;
-	updateTimeBar();
-	if(resume)
-		start();
-}
-
-var setTimePercentage = function(p) {
-	time = p * maxTime;
-	setTime();
-}
-
-var createMesh = function() {
+var createMesh = function(maxSize) {
 	var geometry = new THREE.BufferGeometry();
 	
-	geometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( Particle.getCount() ), 1 ) );	//Unused but required
-	geometry.addAttribute( 'posTimeStart', new THREE.BufferAttribute( new Float32Array( Particle.getCount()*3 ), 3 ) );
-	geometry.addAttribute( 'posTimeEnd', new THREE.BufferAttribute( new Float32Array( Particle.getCount()*3 ), 3 ) );
+	geometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( maxSize/3 ), 1 ) );
+	geometry.addAttribute( 'posTimeStart', new THREE.BufferAttribute( new Float32Array( maxSize ), 3 ) );
+	geometry.addAttribute( 'posTimeEnd', new THREE.BufferAttribute( new Float32Array( maxSize ), 3 ) );
 	
 	if(typeof particleMesh != 'undefined'){
 		scene.remove(particleMesh);
@@ -126,6 +112,7 @@ var createMesh = function() {
 	particleMesh = new THREE.Points( geometry, material );
 	particleMesh.frustumCulled = false;
 	scene.add( particleMesh );
+	getDataChunk();
 }
 
 var setupFileRead = function() {
@@ -133,21 +120,31 @@ var setupFileRead = function() {
 		if(typeof this.files[0] === 'undefined'){
 			return;
 		}
-		ready = false;
+		
 		showLoading(true);
+		if(typeof particleMesh != 'undefined'){
+			scene.remove(particleMesh);
+		}
+		if(typeof particleManager != 'undefined'){
+			particleManager.ready = false;
+		}
+		ready = false;
+		stop();
+		reset();
+		updateTimeBar();
 		var file = this.files[0];
 		
-		//Particle.reset();
-		maxTime = 0;
+		maxAnimationTime = 0;
 		var minTime = Number.MAX_SAFE_INTEGER;
 		var lonMin = Number.MAX_SAFE_INTEGER;
 		var lonMax = -Number.MAX_SAFE_INTEGER;
 		var latMin = Number.MAX_SAFE_INTEGER;
 		var latMax = -Number.MAX_SAFE_INTEGER;
-		particleObjects = {};
 		
 		var navigator = new FileNavigator(file);
 		
+		var preProcessed = false;
+		//First read
 		navigator.readSomeLines(0, function linesReadHandlerPre(err, index, lines, eof, progress) {
 			// Error happened
 			if (err) return; 
@@ -168,69 +165,55 @@ var setupFileRead = function() {
 				
 				if(timeValue < minTime)
 					minTime = timeValue;
+				
+				if(timeValue > maxAnimationTime)
+					maxAnimationTime = timeValue;
 			}
 			
 			// End of file
 			if (eof) {
+				particleManager = new ParticleManager(maxAnimationTime);
+				//Second read
+				navigator.readSomeLines(0, function linesReadHandlerMain(err, index, lines, eof, progress) {
+					// Error happened
+					if (err) return; 
+					
+					// Reading lines
+					for (var i = skipFirst ? 1 : 0; i < lines.length; i++) {
+						if(lines[i].trim() == "")
+							continue;
+						
+						var l = lines[i].split(";");
+						var nameValue = l[nameCol];
+						var latValue = parseFloat(l[latCol]);
+						var lonValue = parseFloat(l[lonCol]);
+						var timeValue;
+						if($.isNumeric(l[timeCol]))
+							timeValue = parseFloat(l[timeCol]) * 1000;
+						else
+							timeValue = Date.parse(l[timeCol]);
+						
+						timeValue -= minTime;
+						
+						particleManager.add(nameValue, transf([lonValue, latValue]), timeValue);
+					}
+					
+					// End of file
+					if (eof) {
+						particleManager.createChunks();
+						reset();
+						mainLoop();
+						return;
+					}
+
+					// Reading next chunk, adding number of lines read to first line in current chunk
+					navigator.readSomeLines(index + lines.length, linesReadHandlerMain);
+				});
 				return;
 			}
 
 			// Reading next chunk, adding number of lines read to first line in current chunk
 			navigator.readSomeLines(index + lines.length, linesReadHandlerPre);
-		});
-		
-		navigator.readSomeLines(0, function linesReadHandlerMain(err, index, lines, eof, progress) {
-			// Error happened
-			if (err) return; 
-			
-			// Reading lines
-			for (var i = skipFirst ? 1 : 0; i < lines.length; i++) {
-				if(lines[i].trim() == "")
-					continue;
-				
-				var l = lines[i].split(";");
-				var nameValue = l[nameCol];
-				var latValue = parseFloat(l[latCol]);
-				var lonValue = parseFloat(l[lonCol]);
-				var timeValue;
-				if($.isNumeric(l[timeCol]))
-					timeValue = parseFloat(l[timeCol]) * 1000;
-				else
-					timeValue = Date.parse(l[timeCol]);
-				
-				timeValue -= minTime;
-				
-				if(timeValue > maxTime)
-					maxTime = timeValue;
-				
-				var particle;
-				if(typeof particleObjects[nameValue] === 'undefined'){
-					particle = new Particle(nameValue);
-					particleObjects[nameValue] = particle;
-				}
-				else
-					particle = particleObjects[nameValue];
-				
-				var coordTime = new CoordinateTime(transf([lonValue, latValue]), timeValue);
-				particle.coords.push(coordTime);
-			}
-			
-			// End of file
-			if (eof) {
-				for(var p in particleObjects) {
-					particleObjects[p].sortCoords();
-				}
-				
-				createMesh();
-				reset();
-				ready = true;
-				showLoading(false);
-				mainLoop();
-				return;
-			}
-
-			// Reading next chunk, adding number of lines read to first line in current chunk
-			navigator.readSomeLines(index + lines.length, linesReadHandlerMain);
 		});
 	};
 }
@@ -238,6 +221,7 @@ var setupFileRead = function() {
 var setupTimeBar = function() {
 	$('.clickable').height($('#buttons').height());
 	$('.progress').height($('#buttons').height());
+	maxTimeBarWidth = $('.clickable').width();
 	
 	$('.clickable').bind('click', function (ev) {
 		var $div = $(ev.target);
@@ -250,7 +234,7 @@ var setupTimeBar = function() {
 		else if(factor > 1)
 			factor = 1;
 		
-		setTimePercentage(factor);
+		animationTime = factor * maxAnimationTime;
 	});
 }
 
@@ -285,8 +269,8 @@ var setupOverlay = function() {
 
 	renderer.setSize(width, height);
 	
-	mouse = new THREE.Vector2();
-	window.addEventListener( 'mousemove', onMouseMove, false );
+	//mouse = new THREE.Vector2();
+	//window.addEventListener( 'mousemove', onMouseMove, false );
 	window.addEventListener( 'resize', onResize, false );
 
 	$container.append(renderer.domElement);
@@ -301,16 +285,15 @@ var showLoading = function(b) {
 }
 
 var updateTimeBar = function() {
-	var maxWidth = $('.clickable').width();
-	var newWidth = time/maxTime * maxWidth;
-	if(newWidth > maxWidth)
-		newWidth = maxWidth;
-	$('.progress').width(newWidth);
+	newTimeBarWidth = animationTime/maxAnimationTime * maxTimeBarWidth;
+	if(newTimeBarWidth > maxTimeBarWidth)
+		newTimeBarWidth = maxTimeBarWidth;
+	$('.progress').width(newTimeBarWidth);
 }
 
 var reset = function() {
-	setTimePercentage(0);
-	prevTime = new Date().getTime();
+	animationTime = 0;
+	prevRealTime = new Date().getTime();
 }
 
 var startStop = function() {
@@ -326,10 +309,10 @@ var start = function() {
 		$("#startStop").css("fontSize", "70%");
 		
 		$('.progress').css('background', 'green');
-		if(time >= maxTime)
+		if(animationTime >= maxAnimationTime)
 			reset();
 
-		prevTime = new Date().getTime();
+		prevRealTime = new Date().getTime();
 		play = true;
 	}
 }
@@ -364,11 +347,11 @@ var faster = function() {
 
 
 // ************ EVENTS ************
-var onMouseMove = function( event ) {
+/*var onMouseMove = function( event ) {
 	mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
 	mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;		
 
-}
+}*/
 
 var onResize = function( event ) {
 	var width = $('#overlay').width();
@@ -378,6 +361,7 @@ var onResize = function( event ) {
 	$('.progress').height($('#buttons').height());
 	
 	renderer.setSize(width, height);
+	maxTimeBarWidth = $('.clickable').width();
 	
 	var scale = $('#overlay').height()/20;
 	if(material != undefined && material.uniforms != undefined)
@@ -392,7 +376,7 @@ var setupMap = function() {
 	
 	map = new ol.Map({
 	  layers: [
-		mainLayer = new ol.layer.Tile({
+		new ol.layer.Tile({
 			preload: Infinity,
 			source: new ol.source.OSM()
 		})
