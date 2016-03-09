@@ -20,25 +20,43 @@ var fromProj, toProj;
 //mouse coordinates, currently unused
 //var mouse;
 
-//file read variables
-var skipFirst, nameCol, timeCol, latCol, lonCol
-
 //time bar variables
 var maxTimeBarWidth, newTimeBarWidth;
 
-
 var init = function() {
-	//specify file read parameters
-	skipFirst = false;
-	nameCol = 0;
-	timeCol = 1;
-	latCol = 2;
-	lonCol = 3;
+	document.getElementById('file').onchange = function(){
+		if(typeof this.files[0] === 'undefined'){
+			return;
+		}
+		showLoading(true);
+		if(typeof particleMesh != 'undefined'){
+			scene.remove(particleMesh);
+		}
+		if(typeof particleManager != 'undefined'){
+			particleManager.ready = false;
+		}
+		ready = false;
+		stop();
+		reset();
+		updateTimeBar();
+		
+		var reader = new FileReader();
+		reader.onload = function(e) {
+			particleManager = new ParticleManager(JSON.parse(reader.result));
+			particleManager.createChunks();
+			maxAnimationTime = particleManager.maxTime;
+			
+			mainLoop();
+		}
+		
+		
+		reader.readAsText(this.files[0])
+		return;
+	};
 	
 	setupTimeBar();
 	setupMap();
 	setupOverlay();
-	setupFileRead();
 }
 
 var mainLoop = function() {
@@ -113,109 +131,6 @@ var createMesh = function(maxSize) {
 	particleMesh.frustumCulled = false;
 	scene.add( particleMesh );
 	getDataChunk();
-}
-
-var setupFileRead = function() {
-	document.getElementById('file').onchange = function(){
-		if(typeof this.files[0] === 'undefined'){
-			return;
-		}
-		
-		showLoading(true);
-		if(typeof particleMesh != 'undefined'){
-			scene.remove(particleMesh);
-		}
-		if(typeof particleManager != 'undefined'){
-			particleManager.ready = false;
-		}
-		ready = false;
-		stop();
-		reset();
-		updateTimeBar();
-		var file = this.files[0];
-		
-		maxAnimationTime = 0;
-		var minTime = Number.MAX_SAFE_INTEGER;
-		var lonMin = Number.MAX_SAFE_INTEGER;
-		var lonMax = -Number.MAX_SAFE_INTEGER;
-		var latMin = Number.MAX_SAFE_INTEGER;
-		var latMax = -Number.MAX_SAFE_INTEGER;
-		
-		var navigator = new FileNavigator(file);
-		
-		var preProcessed = false;
-		//First read
-		navigator.readSomeLines(0, function linesReadHandlerPre(err, index, lines, eof, progress) {
-			// Error happened
-			if (err) return; 
-			
-			// Reading lines
-			for (var i = skipFirst ? 1 : 0; i < lines.length; i++) {
-				if(lines[i].trim() == "")
-					continue;
-				
-				var l = lines[i].split(";");
-				var latValue = parseFloat(l[latCol]);
-				var lonValue = parseFloat(l[lonCol]);
-				var timeValue;
-				if($.isNumeric(l[timeCol]))
-					timeValue = parseFloat(l[timeCol]) * 1000;
-				else
-					timeValue = Date.parse(l[timeCol]);
-				
-				if(timeValue < minTime)
-					minTime = timeValue;
-				
-				if(timeValue > maxAnimationTime)
-					maxAnimationTime = timeValue;
-			}
-			
-			// End of file
-			if (eof) {
-				particleManager = new ParticleManager(maxAnimationTime);
-				//Second read
-				navigator.readSomeLines(0, function linesReadHandlerMain(err, index, lines, eof, progress) {
-					// Error happened
-					if (err) return; 
-					
-					// Reading lines
-					for (var i = skipFirst ? 1 : 0; i < lines.length; i++) {
-						if(lines[i].trim() == "")
-							continue;
-						
-						var l = lines[i].split(";");
-						var nameValue = l[nameCol];
-						var latValue = parseFloat(l[latCol]);
-						var lonValue = parseFloat(l[lonCol]);
-						var timeValue;
-						if($.isNumeric(l[timeCol]))
-							timeValue = parseFloat(l[timeCol]) * 1000;
-						else
-							timeValue = Date.parse(l[timeCol]);
-						
-						timeValue -= minTime;
-						
-						particleManager.add(nameValue, transf([lonValue, latValue]), timeValue);
-					}
-					
-					// End of file
-					if (eof) {
-						particleManager.createChunks();
-						reset();
-						mainLoop();
-						return;
-					}
-
-					// Reading next chunk, adding number of lines read to first line in current chunk
-					navigator.readSomeLines(index + lines.length, linesReadHandlerMain);
-				});
-				return;
-			}
-
-			// Reading next chunk, adding number of lines read to first line in current chunk
-			navigator.readSomeLines(index + lines.length, linesReadHandlerPre);
-		});
-	};
 }
 
 var setupTimeBar = function() {

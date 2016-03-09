@@ -1,65 +1,66 @@
 //********** ParticleManager **********
-var ParticleManager = function(maxT) {
+var ParticleManager = function(data) {
 	var self = this;
-	var maxTime = maxT;
-	this.maxChunkSize = 0;
 	this.ready = false;
-	this.particleMap = {};
-	this.particleList = [];
+	this.maxTime = 0;
+	this.maxChunkSize = 0;
+	this.data = data;
 	
 	//position-time data chunks, lists of Float32Array
 	this.startChunks = [];
 	this.endChunks = [];
 	
-	ParticleManager.prototype.add = function(name, lonLat, time) {
-		if(typeof this.particleMap[name] === 'undefined'){
-			this.particleMap[name] = new Particle();
-			this.particleList.push(this.particleMap[name]);
-		}
-		this.particleMap[name].add(new CoordinateTime(lonLat, time));
-	}
 	
 	ParticleManager.prototype.createChunks = function() {
-		sort(0);
+		firstPass(0);
 	}
 	
-	var sort = function(particleId) {
+	var firstPass = function(particleId) {
 		var idLimit = particleId + 10000;
-		if(idLimit > self.particleList.length)
-			idLimit = self.particleList.length;
+		if(idLimit > self.data.particles.length)
+			idLimit = self.data.particles.length;
 		
 		for(var i = particleId; i < idLimit; i++) {
-			self.particleList[i].sortCoords();
+			var particle = self.data.particles[i];
+			for(var j = 0; j < particle.coordTimes.length; j++){
+				var lonLat = transf([particle.coordTimes[j].lat, particle.coordTimes[j].lon]);
+				particle.coordTimes[j].lon = lonLat[0];
+				particle.coordTimes[j].lat = lonLat[1];
+				if(particle.coordTimes[j].time > self.maxTime)
+					self.maxTime = particle.coordTimes[j].time;
+			}
+			//self.particleList[i].sortCoords();
 		}
 		setTimeout(function() {
-			if(idLimit < self.particleList.length)
-				sort(idLimit);
+			if(idLimit < self.data.particles.length)
+				firstPass(idLimit);
 			else
 				createChunksInner(0);
 		}, 0)
 	}
 	
 	var createChunksInner = function(chunkCounter) {
-		if(chunkCounter*ParticleManager.prototype.chunkTime > maxTime) {
+		if(chunkCounter*ParticleManager.prototype.chunkTime > self.maxTime) {
 			self.ready = true;
 			return;
 		}
 		
 		var chunkStartArray = [];
 		var chunkEndArray = [];
-		for(var i = 0; i < self.particleList.length; i++) {
-			var particle = self.particleList[i];
-			var slot = particle.searchTimeSlot(chunkCounter*ParticleManager.prototype.chunkTime);
+		for(var i = 0; i < self.data.particles.length; i++) {
+			var particle = self.data.particles[i];
+			var slot = self.searchTimeSlot(i, chunkCounter*ParticleManager.prototype.chunkTime);
+			//var slot = particle.searchTimeSlot(chunkCounter*ParticleManager.prototype.chunkTime);
 			if(typeof(slot) != 'undefined') {
-				while(slot < particle.coords.length-1 && particle.coords[slot].time < (chunkCounter+1)*ParticleManager.prototype.chunkTime) {
+				while(slot < particle.coordTimes.length-1 && particle.coordTimes[slot].time < (chunkCounter+1)*ParticleManager.prototype.chunkTime) {
 					
-					chunkStartArray.push(particle.coords[slot].lon);
-					chunkStartArray.push(particle.coords[slot].lat);
-					chunkStartArray.push(particle.coords[slot].time);
+					chunkStartArray.push(particle.coordTimes[slot].lon);
+					chunkStartArray.push(particle.coordTimes[slot].lat);
+					chunkStartArray.push(particle.coordTimes[slot].time);
 					
-					chunkEndArray.push(particle.coords[slot+1].lon);
-					chunkEndArray.push(particle.coords[slot+1].lat);
-					chunkEndArray.push(particle.coords[slot+1].time);
+					chunkEndArray.push(particle.coordTimes[slot+1].lon);
+					chunkEndArray.push(particle.coordTimes[slot+1].lat);
+					chunkEndArray.push(particle.coordTimes[slot+1].time);
 					slot++;
 				}
 			}
@@ -93,44 +94,23 @@ var ParticleManager = function(maxT) {
 	ParticleManager.prototype.getEndChunk = function(time) {
 		return this.endChunks[Math.floor(time/ParticleManager.prototype.chunkTime)];
 	}
-}
-
-ParticleManager.prototype.chunkTime = 10000;	//default chunk time size, in milliseconds
-
-ParticleManager.getChunkTime = function() {
-	return ParticleManager.prototype.chunkTime;
-}
-
-//********** Particle **********
-var Particle = function(){
-	this.coords = [];
-	this.sorted = true;
 	
-	Particle.prototype.add = function(coordTime) {
-		if(this.coords.length > 0 && this.coords[this.coords.length-1].time > coordTime.time)
-			this.sorted = false;
-		this.coords.push(coordTime);
+	ParticleManager.prototype.sortCoords = function(id) {
+		self.data.particles[id].coordTimes.sort( function(ct1, ct2) { return ct1.time - ct2.time } );
 	}
 	
-	Particle.prototype.sortCoords = function() {
-		if(!this.sorted) {
-			this.coords.sort(CoordinateTime.sort);
-			this.sorted = true;
-		}
-	}
-	
-	Particle.prototype.searchTimeSlot = function(time) {
-		if(this.coords[0].time > time){
+	ParticleManager.prototype.searchTimeSlot = function(id, time) {
+		if(typeof(self.data.particles[id].coordTimes[0]) == 'undefined' || self.data.particles[id].coordTimes[0].time > time){
 			return undefined;
 		}
 		
 		//binary search
 		var low = 0;
-        var high = this.coords.length - 1;
+        var high = self.data.particles[id].coordTimes.length - 1;
 		var middle = Math.floor((high + low)/2);
 
 		while(low < high){
-			if(time < this.coords[middle].time)
+			if(time < self.data.particles[id].coordTimes[middle].time)
 				high = middle;
 			else
 				low = middle+1;
@@ -138,21 +118,16 @@ var Particle = function(){
 			middle = Math.floor((high + low)/2);
 		}
 		
-		if(this.coords[middle].time > time)
+		if(self.data.particles[id].coordTimes[middle].time > time)
 			middle--;
 		
 		return middle;
 	}
+	
 }
 
+ParticleManager.prototype.chunkTime = 10000;	//default chunk time size, in milliseconds
 
-//********** Coordinate - time **********
-var CoordinateTime = function(lonLat, time) {
-	this.lon = lonLat[0];
-	this.lat = lonLat[1];
-	this.time = time;
-	
-	CoordinateTime.sort = function(ct1, ct2) {
-		return ct1.time - ct2.time;
-	}
+ParticleManager.getChunkTime = function() {
+	return ParticleManager.prototype.chunkTime;
 }
