@@ -3,6 +3,7 @@ var ParticleManager = function() {
 	var self = this;
 	
 	this.chunkTime = 20000; //default chunk time size, in milliseconds
+	this.currentChunkTime;
 	
 	this.ready = false;
 	this.maxTime = 0;
@@ -25,7 +26,14 @@ var ParticleManager = function() {
 		firstPass(0);
 	}
 	
+	ParticleManager.prototype.isChunkOutdated = function(time) {
+		return (time >= self.currentChunkTime + self.chunkTime || time < self.currentChunkTime);
+	}
+	
+	
+	
 	ParticleManager.prototype.getChunk = function(time) {
+		self.currentChunkTime = Math.floor(time/self.chunkTime) * self.chunkTime;
 		return this.chunks[Math.floor(time/self.chunkTime)];
 	}
 	
@@ -41,7 +49,7 @@ var ParticleManager = function() {
 			
 			var sorted = true;
 			for(var j = 0; j < particle.coordTimes.length; j++){
-				var lonLat = transf([particle.coordTimes[j].lat, particle.coordTimes[j].lon]);
+				var lonLat = transf(particle.coordTimes[j].lon, particle.coordTimes[j].lat);
 				particle.coordTimes[j].lon = lonLat[0];
 				particle.coordTimes[j].lat = lonLat[1];
 				
@@ -82,6 +90,19 @@ var ParticleManager = function() {
 		var chunkArray = [];
 		for(var i = 0; i < self.particles.length; i++) {
 			var particle = self.particles[i];
+			if(typeof(particle.col) == 'undefined')
+				particle.col = {
+					r: 230,
+					g: 50,
+					b: 0
+				};
+				
+			if(typeof(particle.size) == 'undefined')
+				particle.size = 1.0;
+			
+			if(typeof(particle.z) == 'undefined')
+				particle.z = 0.0;
+			
 			var slot = searchTimeSlot(i, chunkCounter*self.chunkTime);
 			if(typeof(slot) != 'undefined') {
 				while(slot < particle.coordTimes.length-1 && particle.coordTimes[slot].t < (chunkCounter+1)*self.chunkTime) {
@@ -94,6 +115,10 @@ var ParticleManager = function() {
 					chunkArray.push(particle.coordTimes[slot+1].t);
 					
 					chunkArray.push(packColor(particle.col));
+					chunkArray.push(particle.coordTimes[slot].a || 1.0);
+					
+					chunkArray.push(particle.size);
+					chunkArray.push(particle.z);
 
 					slot++;
 				}

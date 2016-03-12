@@ -1,8 +1,9 @@
 var play = false;
 var ready = false;
+var mode = 0;
 
 //time variables
-var animationTime, maxAnimationTime, currentChunkTime;	//related to animation time
+var animationTime, maxAnimationTime;	//related to animation time
 var prevRealTime, newRealTime, deltaRealTime; //variables for actual time
 var timestep = 1; //speed
 
@@ -21,11 +22,11 @@ var fromProj, toProj;
 var maxTimeBarWidth, newTimeBarWidth;
 
 var init = function() {
-	$("#add_data_visible").click(function() {
-		$("#add_data_hidden").trigger("click");
+	$("#visible_add_data").click(function() {
+		$("#hidden_add_data").trigger("click");
 	});
 	
-	document.getElementById('add_data_hidden').onchange = function(){
+	document.getElementById('hidden_add_data').onchange = function(){
 		var files = this.files;
 		if(typeof files[0] === 'undefined'){
 			return;
@@ -91,7 +92,7 @@ var mainLoop = function() {
 		}
 	}
 	
-	if(animationTime >= currentChunkTime + particleManager.chunkTime || animationTime < currentChunkTime) {
+	if(particleManager.isChunkOutdated(animationTime)) {
 		getDataChunk();
 	}
 	material.uniforms['time'].value = animationTime;
@@ -107,8 +108,6 @@ var getDataChunk = function() {
 	interleavedBuffer.array.set(chunk);
 	interleavedBuffer.array.fill(0, chunk.length);
 	interleavedBuffer.needsUpdate = true;
-	
-	currentChunkTime = Math.floor(animationTime/particleManager.chunkTime)*particleManager.chunkTime;
 }
 
 var setCameraExtent = function() {
@@ -125,12 +124,16 @@ var setCameraExtent = function() {
 var createMesh = function(maxSize) {
 	var geometry = new THREE.InstancedBufferGeometry();
 	
-	interleavedBuffer = new THREE.InterleavedBuffer( new Float32Array( maxSize ), 7 );
+	interleavedBuffer = new THREE.InterleavedBuffer( new Float32Array( maxSize ), 10 );
 	
 	geometry.addAttribute( 'position', new THREE.InterleavedBufferAttribute( interleavedBuffer, 3, 0 ) );
 	geometry.addAttribute( 'positionNext', new THREE.InterleavedBufferAttribute( interleavedBuffer, 3, 3 ) );
-	
+
 	geometry.addAttribute( 'color', new THREE.InterleavedBufferAttribute( interleavedBuffer, 1, 6 ) );
+	geometry.addAttribute( 'alpha', new THREE.InterleavedBufferAttribute( interleavedBuffer, 1, 7 ) );
+	
+	geometry.addAttribute( 'size', new THREE.InterleavedBufferAttribute( interleavedBuffer, 1, 8 ) );
+	geometry.addAttribute( 'zValue', new THREE.InterleavedBufferAttribute( interleavedBuffer, 1, 9 ) );
 	
 	if(typeof particleMesh != 'undefined'){
 		scene.remove(particleMesh);
@@ -170,9 +173,9 @@ var setupWebgl = function() {
 		uniforms: {
 			texture: { type: "t", value: loader.load( "images/spark1.png" ) },
 			time: { type: 'f', value: 0.0 },
-			scale: { type: 'f', value: $('#overlay').height()/50 }
+			scale: { type: 'f', value: $('#overlay').height()/20 },
+			mode: { type: 'i', value: 0 }
 		},
-		//blending: THREE.AdditiveBlending,
 		depthTest: false,
 		transparent: true,
 		vertexShader: vertexShader,
@@ -266,6 +269,23 @@ var faster = function() {
 	$('#slower').prop("disabled",false);
 }
 
+// 0: normal
+// 1: heatmap
+var toggleMode = function() {
+	switch(mode){
+		case 0:
+			mode = 1;
+			material.uniforms[ 'mode' ].value = 1;
+			material.blending = THREE.AdditiveBlending;
+			break;
+		case 1:
+			mode = 0;
+			material.uniforms[ 'mode' ].value = 0;
+			material.blending = THREE.NormalBlending;
+			break;
+	}
+}
+
 
 // ************ EVENTS ************
 var onResize = function( event ) {
@@ -290,32 +310,28 @@ var setupMap = function() {
     toProj   = new ol.proj.Projection({ code: "EPSG:900913" }); // to Spherical Mercator Projection
 	
 	map = new ol.Map({
-	  layers: [
-		new ol.layer.Tile({
-			preload: Infinity,
-			source: new ol.source.OSM()
-		})
-	  ],
-	  view: new ol.View({
-		center: [0, 0],
-		zoom: 2
-	  }),
-	  loadTilesWhileInteracting: true,
-	  interactions: ol.interaction.defaults({
-		dragPan: false,
-		mouseWheelZoom: false
-	  }).extend([
-		new ol.interaction.DragPan({kinetic: false}),
-		new ol.interaction.MouseWheelZoom({duration: 0})
-	  ]),
-	  target: 'map'
+		layers: [
+			new ol.layer.Tile({
+				preload: Infinity,
+				source: new ol.source.OSM()
+			})
+		],
+		view: new ol.View({
+			center: [0, 0],
+			zoom: 2
+		}),
+		loadTilesWhileInteracting: true,
+		interactions: ol.interaction.defaults({
+			dragPan: false,
+			mouseWheelZoom: false
+		}).extend([
+			new ol.interaction.DragPan({kinetic: false}),
+			new ol.interaction.MouseWheelZoom({duration: 0})
+		]),
+		target: 'map'
 	});
 }
 
-var transf = function(a) {
-	return ol.proj.transform([a[0], a[1]], fromProj, toProj);
-}
-
-var transfInverse = function(a) {
-	return ol.proj.transform([a[0], a[1]], toProj, fromProj);
+var transf = function(lon, lat) {
+	return ol.proj.transform([lat, lon], fromProj, toProj);
 }
