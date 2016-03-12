@@ -2,6 +2,6 @@
 
 Browser-based interactive movement data visualization tool. Uses OpenLayers 3 and THREE.js.
 
-[Live demo](tinyurl.com/TrafficVis)
+[Live demo](http://www.tinyurl.com/TrafficVis)
 
-[Example data](tinyurl.com/qfznju2)
+[Example data](http://www.tinyurl.com/qfznju2)
