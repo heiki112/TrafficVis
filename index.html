@@ -68,12 +68,12 @@
 	void main() {
 		vec4 color = vec4(unpackedColor, 1.0);
 			
-		/*vec2 remap = (gl_PointCoord - 0.5) * 2.0;
+		vec2 remap = (gl_PointCoord - 0.5) * 2.0;
 		float dist = pow(remap.x, 2.0) + pow(remap.y, 2.0);
 		if(dist < 1.0)
-			gl_FragColor = color;*/
+			gl_FragColor = color;
 			
-		gl_FragColor = color * texture2D( texture, gl_PointCoord );
+		//gl_FragColor = color * texture2D( texture, gl_PointCoord );
 	}
 	
 </script>

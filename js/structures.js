@@ -46,8 +46,8 @@ var ParticleManager = function() {
 				particle.coordTimes[j].lat = lonLat[1];
 				
 				//max time
-				if(particle.coordTimes[j].time > self.maxTime)
-					self.maxTime = particle.coordTimes[j].time;
+				if(particle.coordTimes[j].t > self.maxTime)
+					self.maxTime = particle.coordTimes[j].t;
 				
 				//map bounds
 				if(particle.coordTimes[j].lat < self.minLat)
@@ -59,11 +59,11 @@ var ParticleManager = function() {
 				if(particle.coordTimes[j].lon > self.maxLon)
 					self.maxLon = particle.coordTimes[j].lon;
 				
-				if(j > 0 && particle.coordTimes[j-1].time > particle.coordTimes[j].time)
+				if(j > 0 && particle.coordTimes[j-1].t > particle.coordTimes[j].t)
 					sorted = false;
 			}
 			if(!sorted)
-				particle.coordTimes.sort( function(ct1, ct2) { return ct1.time - ct2.time } );
+				particle.coordTimes.sort( function(ct1, ct2) { return ct1.t - ct2.t } );
 		}
 		setTimeout(function() {
 			if(idLimit < self.particles.length)
@@ -84,16 +84,16 @@ var ParticleManager = function() {
 			var particle = self.particles[i];
 			var slot = searchTimeSlot(i, chunkCounter*self.chunkTime);
 			if(typeof(slot) != 'undefined') {
-				while(slot < particle.coordTimes.length-1 && particle.coordTimes[slot].time < (chunkCounter+1)*self.chunkTime) {
+				while(slot < particle.coordTimes.length-1 && particle.coordTimes[slot].t < (chunkCounter+1)*self.chunkTime) {
 					chunkArray.push(particle.coordTimes[slot].lon);
 					chunkArray.push(particle.coordTimes[slot].lat);
-					chunkArray.push(particle.coordTimes[slot].time);
+					chunkArray.push(particle.coordTimes[slot].t);
 					
 					chunkArray.push(particle.coordTimes[slot+1].lon);
 					chunkArray.push(particle.coordTimes[slot+1].lat);
-					chunkArray.push(particle.coordTimes[slot+1].time);
+					chunkArray.push(particle.coordTimes[slot+1].t);
 					
-					chunkArray.push(packColor(particle.color));
+					chunkArray.push(packColor(particle.col));
 
 					slot++;
 				}
@@ -119,7 +119,7 @@ var ParticleManager = function() {
 	}
 	
 	var searchTimeSlot = function(id, time) {
-		if(typeof(self.particles[id].coordTimes[0]) == 'undefined' || self.particles[id].coordTimes[0].time > time){
+		if(typeof(self.particles[id].coordTimes[0]) == 'undefined' || self.particles[id].coordTimes[0].t > time){
 			return undefined;
 		}
 		
@@ -129,7 +129,7 @@ var ParticleManager = function() {
 		var middle = Math.floor((high + low)/2);
 
 		while(low < high){
-			if(time < self.particles[id].coordTimes[middle].time)
+			if(time < self.particles[id].coordTimes[middle].t)
 				high = middle;
 			else
 				low = middle+1;
@@ -137,7 +137,7 @@ var ParticleManager = function() {
 			middle = Math.floor((high + low)/2);
 		}
 		
-		if(self.particles[id].coordTimes[middle].time > time)
+		if(self.particles[id].coordTimes[middle].t > time)
 			middle--;
 		
 		return middle;

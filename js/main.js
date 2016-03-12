@@ -170,9 +170,9 @@ var setupWebgl = function() {
 		uniforms: {
 			texture: { type: "t", value: loader.load( "images/spark1.png" ) },
 			time: { type: 'f', value: 0.0 },
-			scale: { type: 'f', value: $('#overlay').height()/20 }
+			scale: { type: 'f', value: $('#overlay').height()/50 }
 		},
-		blending: THREE.AdditiveBlending,
+		//blending: THREE.AdditiveBlending,
 		depthTest: false,
 		transparent: true,
 		vertexShader: vertexShader,
