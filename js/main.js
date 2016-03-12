@@ -11,52 +11,63 @@ var particleManager;
 
 //WebGL things
 var loader, renderer, scene, camera, particleMesh, material;
-var vertexShader, fragmentShader;
+var interleavedBuffer;
 
 //Map variables
 var map, extent;
 var fromProj, toProj;
 
-//mouse coordinates, currently unused
-//var mouse;
-
 //time bar variables
 var maxTimeBarWidth, newTimeBarWidth;
 
 var init = function() {
-	document.getElementById('file').onchange = function(){
-		if(typeof this.files[0] === 'undefined'){
+	$("#add_data_visible").click(function() {
+		$("#add_data_hidden").trigger("click");
+	});
+	
+	document.getElementById('add_data_hidden').onchange = function(){
+		var files = this.files;
+		if(typeof files[0] === 'undefined'){
 			return;
 		}
+		ready = false;
+		stop();
+		
 		showLoading(true);
 		if(typeof particleMesh != 'undefined'){
 			scene.remove(particleMesh);
 		}
-		if(typeof particleManager != 'undefined'){
-			particleManager.ready = false;
-		}
-		ready = false;
-		stop();
-		reset();
-		updateTimeBar();
+
+		particleManager = new ParticleManager();
 		
+		var fileCounter = 0;
 		var reader = new FileReader();
 		reader.onload = function(e) {
-			particleManager = new ParticleManager(JSON.parse(reader.result));
-			particleManager.createChunks();
-			maxAnimationTime = particleManager.maxTime;
+			particleManager.addData(JSON.parse(reader.result));
 			
-			mainLoop();
+			if(fileCounter < files.length){
+				reader.readAsText(files[fileCounter++]);
+			}
+			else {
+				particleManager.createChunks();
+				map.getView().fit([particleManager.minLon, particleManager.minLat, particleManager.maxLon, particleManager.maxLat], map.getSize());
+				if(map.getView().getZoom() > 12)
+					map.getView().setZoom(12);
+				
+				maxAnimationTime = particleManager.maxTime;
+				reset();
+				updateTimeBar();
+				mainLoop();
+			}
 		}
 		
-		
-		reader.readAsText(this.files[0])
+		reader.readAsText(files[fileCounter++])
 		return;
 	};
 	
 	setupTimeBar();
 	setupMap();
-	setupOverlay();
+	setupWebgl();
 }
 
 var mainLoop = function() {
@@ -80,7 +91,7 @@ var mainLoop = function() {
 		}
 	}
 	
-	if(animationTime >= currentChunkTime + ParticleManager.getChunkTime() || animationTime < currentChunkTime) {
+	if(animationTime >= currentChunkTime + particleManager.chunkTime || animationTime < currentChunkTime) {
 		getDataChunk();
 	}
 	material.uniforms['time'].value = animationTime;
@@ -91,19 +102,13 @@ var mainLoop = function() {
 }
 
 var getDataChunk = function() {
-	var startChunk = particleManager.getStartChunk(animationTime);
-	var endChunk = particleManager.getEndChunk(animationTime);
+	var chunk = particleManager.getChunk(animationTime);
 	
-	particleMesh.geometry.attributes.posTimeStart.array.set(startChunk);
-	particleMesh.geometry.attributes.posTimeStart.array.fill(0, startChunk.length);
+	interleavedBuffer.array.set(chunk);
+	interleavedBuffer.array.fill(0, chunk.length);
+	interleavedBuffer.needsUpdate = true;
 	
-	particleMesh.geometry.attributes.posTimeEnd.array.set(endChunk);
-	particleMesh.geometry.attributes.posTimeEnd.array.fill(0, endChunk.length);
-	
-	particleMesh.geometry.attributes.posTimeStart.needsUpdate = true;
-	particleMesh.geometry.attributes.posTimeEnd.needsUpdate = true;
-	
-	currentChunkTime = Math.floor(animationTime/ParticleManager.getChunkTime())*ParticleManager.getChunkTime();
+	currentChunkTime = Math.floor(animationTime/particleManager.chunkTime)*particleManager.chunkTime;
 }
 
 var setCameraExtent = function() {
@@ -118,11 +123,14 @@ var setCameraExtent = function() {
 }
 
 var createMesh = function(maxSize) {
-	var geometry = new THREE.BufferGeometry();
+	var geometry = new THREE.InstancedBufferGeometry();
 	
-	geometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( maxSize/3 ), 1 ) );
-	geometry.addAttribute( 'posTimeStart', new THREE.BufferAttribute( new Float32Array( maxSize ), 3 ) );
-	geometry.addAttribute( 'posTimeEnd', new THREE.BufferAttribute( new Float32Array( maxSize ), 3 ) );
+	interleavedBuffer = new THREE.InterleavedBuffer( new Float32Array( maxSize ), 7 );
+	
+	geometry.addAttribute( 'position', new THREE.InterleavedBufferAttribute( interleavedBuffer, 3, 0 ) );
+	geometry.addAttribute( 'positionNext', new THREE.InterleavedBufferAttribute( interleavedBuffer, 3, 3 ) );
+	
+	geometry.addAttribute( 'color', new THREE.InterleavedBufferAttribute( interleavedBuffer, 1, 6 ) );
 	
 	if(typeof particleMesh != 'undefined'){
 		scene.remove(particleMesh);
@@ -153,12 +161,12 @@ var setupTimeBar = function() {
 	});
 }
 
-var setupOverlay = function() {
-	vertexShader = $('#vertexShader')[0].textContent;
-	fragmentShader = $('#fragmentShader')[0].textContent;
+var setupWebgl = function() {
+	var vertexShader = $('#vertexShader')[0].textContent;
+	var fragmentShader = $('#fragmentShader')[0].textContent;
 	loader = new THREE.TextureLoader();
 	
-	material = new THREE.ShaderMaterial({
+	material = new THREE.RawShaderMaterial({
 		uniforms: {
 			texture: { type: "t", value: loader.load( "images/spark1.png" ) },
 			time: { type: 'f', value: 0.0 },
@@ -184,8 +192,6 @@ var setupOverlay = function() {
 
 	renderer.setSize(width, height);
 	
-	//mouse = new THREE.Vector2();
-	//window.addEventListener( 'mousemove', onMouseMove, false );
 	window.addEventListener( 'resize', onResize, false );
 
 	$container.append(renderer.domElement);
@@ -262,12 +268,6 @@ var faster = function() {
 
 
 // ************ EVENTS ************
-/*var onMouseMove = function( event ) {
-	mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-	mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;		
-
-}*/
-
 var onResize = function( event ) {
 	var width = $('#overlay').width();
 	var height = $('#overlay').height();
@@ -296,6 +296,10 @@ var setupMap = function() {
 			source: new ol.source.OSM()
 		})
 	  ],
+	  view: new ol.View({
+		center: [0, 0],
+		zoom: 2
+	  }),
 	  loadTilesWhileInteracting: true,
 	  interactions: ol.interaction.defaults({
 		dragPan: false,
@@ -306,21 +310,12 @@ var setupMap = function() {
 	  ]),
 	  target: 'map'
 	});
-	map.getView().fit(transf([21.781, 57.521, 28.883, 59.983]), map.getSize());
 }
 
 var transf = function(a) {
-	if(a.length == 2) {
-		return ol.proj.transform([a[0], a[1]], fromProj, toProj);
-	} else if(a.length == 4) {
-		return ol.proj.transformExtent([a[0], a[1], a[2], a[3]], fromProj, toProj);
-	}
+	return ol.proj.transform([a[0], a[1]], fromProj, toProj);
 }
 
 var transfInverse = function(a) {
-	if(a.length == 2) {
-		return ol.proj.transform([a[0], a[1]], toProj, fromProj);
-	} else if(a.length == 4) {
-		return ol.proj.transformExtent([a[0], a[1], a[2], a[3]], toProj, fromProj);
-	}
+	return ol.proj.transform([a[0], a[1]], toProj, fromProj);
 }
