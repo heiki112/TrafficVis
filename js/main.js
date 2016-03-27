@@ -27,8 +27,7 @@ var init = function() {
 	});
 	
 	document.getElementById('hidden_add_data').onchange = function(){
-		var files = this.files;
-		if(typeof files[0] === 'undefined'){
+		if(typeof this.files[0] === 'undefined'){
 			return;
 		}
 		ready = false;
@@ -41,34 +40,51 @@ var init = function() {
 
 		particleManager = new ParticleManager();
 		
-		var fileCounter = 0;
-		var reader = new FileReader();
-		reader.onload = function(e) {
-			particleManager.addData(JSON.parse(reader.result));
-			
-			if(fileCounter < files.length){
-				reader.readAsText(files[fileCounter++]);
-			}
-			else {
-				particleManager.createChunks();
-				map.getView().fit([particleManager.minLon, particleManager.minLat, particleManager.maxLon, particleManager.maxLat], map.getSize());
-				if(map.getView().getZoom() > 12)
-					map.getView().setZoom(12);
-				
-				maxAnimationTime = particleManager.maxTime;
-				reset();
-				updateTimeBar();
-				mainLoop();
-			}
-		}
-		
-		reader.readAsText(files[fileCounter++])
-		return;
+		addData(this.files, 0);
 	};
 	
 	setupTimeBar();
 	setupMap();
 	setupWebgl();
+}
+
+var addData = function(data, fileCounter) {
+	if(fileCounter >= data.length) {
+		startMainLoop();
+		return;
+	}
+	
+	var navigator = new FileNavigator(data[fileCounter]);
+
+	navigator.readSomeLines(0, function linesReadHandler(err, index, lines, eof, progress) {
+		console.log('Reading file progress: ', progress);
+		
+		for (var i = 0; i < lines.length; i++) {
+			var line = lines[i];
+			particleManager.addData(line);
+		}
+
+		if(!eof) {
+			setTimeout(function() {
+				navigator.readSomeLines(index + lines.length, linesReadHandler);
+			}, 0)
+		}
+		else {
+			addData(data, ++fileCounter);
+		}
+	});
+}
+
+var startMainLoop = function() {
+	particleManager.createChunks();
+	map.getView().fit([particleManager.minLon, particleManager.minLat, particleManager.maxLon, particleManager.maxLat], map.getSize());
+	if(map.getView().getZoom() > 12)
+		map.getView().setZoom(12);
+	
+	maxAnimationTime = particleManager.maxTime;
+	reset();
+	updateTimeBar();
+	mainLoop();
 }
 
 var mainLoop = function() {

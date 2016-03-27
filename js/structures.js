@@ -6,6 +6,7 @@ var ParticleManager = function() {
 	this.currentChunkTime;
 	
 	this.ready = false;
+	this.minTime = Number.MAX_SAFE_INTEGER;
 	this.maxTime = 0;
 	this.minLat = Number.MAX_SAFE_INTEGER;
 	this.minLon = Number.MAX_SAFE_INTEGER;
@@ -13,16 +14,69 @@ var ParticleManager = function() {
 	this.maxLon = Number.MIN_SAFE_INTEGER;
 	this.maxChunkSize = 0;
 	this.particles = [];
+	this.particleMap = {};
 	
 	//position-time data chunks, lists of Float32Array that are given into interleavedBuffer
 	this.chunks = [];
 	
 	//"Public" functions
 	ParticleManager.prototype.addData = function(data) {
-		Array.prototype.push.apply(self.particles, data.particles);
+		var obj;
+		try {
+			obj = JSON.parse(data.toLowerCase());
+		}
+		catch(err) {}
+		if(obj){
+			if(typeof(obj.pid) != 'undefined') {
+				var id = obj.pid.toString();
+				delete obj.pid;
+				if(typeof(self.particleMap[id]) == 'undefined') {
+					self.particles.push({coordTimes: []});
+					self.particleMap[id] = self.particles[self.particles.length - 1];
+				}
+				
+				var lonLat = transf(obj.lon, obj.lat);
+				obj.lon = lonLat[0];
+				obj.lat = lonLat[1];
+				
+				//max time
+				if(obj.t > self.maxTime)
+					self.maxTime = obj.t;
+				//min time
+				if(obj.t < self.minTime)
+					self.minTime = obj.t;
+				
+				//map bounds
+				if(obj.lat < self.minLat)
+					self.minLat = obj.lat;
+				if(obj.lat > self.maxLat)
+					self.maxLat = obj.lat;
+				if(obj.lon < self.minLon)
+					self.minLon = obj.lon;
+				if(obj.lon > self.maxLon)
+					self.maxLon = obj.lon;
+				
+				self.particleMap[id].coordTimes.push(obj);
+			}
+			else {
+				var id = obj.id.toString();
+				obj.id = id;
+				if(typeof(self.particleMap[id]) == 'undefined') {
+					self.particles.push({coordTimes: []});
+					self.particleMap[id] = self.particles[self.particles.length - 1];
+				}
+				
+				self.particleMap[id].col = obj.c;
+				self.particleMap[id].size = obj.s;
+				self.particleMap[id].z = obj.z;
+			}
+		}
+		
+		//Array.prototype.push.apply(self.particles, data.particles);
 	}
 	
 	ParticleManager.prototype.createChunks = function() {
+		self.maxTime -= self.minTime;
 		firstPass(0);
 	}
 	
@@ -41,6 +95,9 @@ var ParticleManager = function() {
 	//"Private functions"
 	var firstPass = function(particleId) {
 		var idLimit = particleId + 10000;
+		
+		console.log('ParticleManager firstPass: ', idLimit);
+		
 		if(idLimit > self.particles.length)
 			idLimit = self.particles.length;
 		
@@ -49,24 +106,7 @@ var ParticleManager = function() {
 			
 			var sorted = true;
 			for(var j = 0; j < particle.coordTimes.length; j++){
-				var lonLat = transf(particle.coordTimes[j].lon, particle.coordTimes[j].lat);
-				particle.coordTimes[j].lon = lonLat[0];
-				particle.coordTimes[j].lat = lonLat[1];
-				
-				//max time
-				if(particle.coordTimes[j].t > self.maxTime)
-					self.maxTime = particle.coordTimes[j].t;
-				
-				//map bounds
-				if(particle.coordTimes[j].lat < self.minLat)
-					self.minLat = particle.coordTimes[j].lat;
-				if(particle.coordTimes[j].lat > self.maxLat)
-					self.maxLat = particle.coordTimes[j].lat;
-				if(particle.coordTimes[j].lon < self.minLon)
-					self.minLon = particle.coordTimes[j].lon;
-				if(particle.coordTimes[j].lon > self.maxLon)
-					self.maxLon = particle.coordTimes[j].lon;
-				
+				particle.coordTimes[j].t -= self.minTime;
 				if(j > 0 && particle.coordTimes[j-1].t > particle.coordTimes[j].t)
 					sorted = false;
 			}
@@ -76,12 +116,16 @@ var ParticleManager = function() {
 		setTimeout(function() {
 			if(idLimit < self.particles.length)
 				firstPass(idLimit);
-			else
+			else {
+				console.log('Total time chunks to be made: ', Math.ceil(self.maxTime/self.chunkTime));
 				createChunksInner(0);
+			}
 		}, 0)
 	}
 	
 	var createChunksInner = function(chunkCounter) {
+		console.log('ParticleManager createChunksInner: ', chunkCounter);
+		
 		if(chunkCounter*self.chunkTime > self.maxTime) {
 			self.ready = true;
 			return;
