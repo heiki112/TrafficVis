@@ -76,6 +76,10 @@ var ParticleManager = function() {
 	}
 	
 	ParticleManager.prototype.createChunks = function() {
+		self.chunkTime = Math.floor(200000000/self.particles.length);
+		if(self.chunkTime < 5000)
+			self.chunkTime = 5000;
+		
 		self.maxTime -= self.minTime;
 		firstPass(0);
 	}
@@ -118,6 +122,7 @@ var ParticleManager = function() {
 				firstPass(idLimit);
 			else {
 				console.log('Total time chunks to be made: ', Math.ceil(self.maxTime/self.chunkTime));
+				console.log('ChunkTime(s): ', self.chunkTime / 1000);
 				createChunksInner(0);
 			}
 		}, 0)
