@@ -306,20 +306,6 @@ var toggleHeatMap = function() {
 	}
 }
 
-var setMapProvider = function(provider) {
-	switch(provider){
-		case '0':
-			
-			break;
-		case '1':
-			map.getLayers().removeAt(0);
-			map.setView(googleMap.view);
-			googleMap.element.hidden = false;
-			googleMap.map.controls[google.maps.ControlPosition.TOP_LEFT].push(document.getElementById('map'));
-			break;
-	}
-}
-
 
 // ************ EVENTS ************
 var onResize = function( event ) {
