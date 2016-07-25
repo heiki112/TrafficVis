@@ -1,25 +1,22 @@
+var useGoogleMaps = false;
 var play = false;
 var ready = false;
-var mode = 0;
 
 //time variables
-var animationTime, maxAnimationTime;	//related to animation time
-var prevRealTime, newRealTime, deltaRealTime; //variables for actual time
+var animationTime, prevRealTime;	//related to animation time
 var timestep = 1; //speed
 
 //"particle manager"
 var particleManager;
 
 //WebGL things
-var loader, renderer, scene, camera, particleMesh, material;
+var renderer, scene, camera, particleMesh, material;
 var interleavedBuffer;
 
 //Map variables
-var map, extent;
+var map, googleMap, openStreetMap;
 var fromProj, toProj;
 
-//time bar variables
-var maxTimeBarWidth, newTimeBarWidth;
 
 var init = function() {
 	$("#visible_add_data").click(function() {
@@ -44,7 +41,7 @@ var init = function() {
 	};
 	
 	setupTimeBar();
-	setupMap();
+	setupMap(1);
 	setupWebgl();
 }
 
@@ -81,7 +78,6 @@ var startMainLoop = function() {
 	if(map.getView().getZoom() > 12)
 		map.getView().setZoom(12);
 	
-	maxAnimationTime = particleManager.maxTime;
 	reset();
 	updateTimeBar();
 	mainLoop();
@@ -97,14 +93,14 @@ var mainLoop = function() {
 	}
 	setCameraExtent();
 	if(play) {
-		newRealTime = new Date().getTime();
-		deltaRealTime = newRealTime - prevRealTime;
+		var newRealTime = new Date().getTime();
+		var deltaRealTime = newRealTime - prevRealTime;
 		prevRealTime = newRealTime;
 		animationTime += deltaRealTime*timestep;
 		
-		if(animationTime >= maxAnimationTime) {
+		if(animationTime >= particleManager.maxTime) {
 			stop();
-			animationTime = maxAnimationTime;
+			animationTime = particleManager.maxTime;
 		}
 	}
 	
@@ -127,7 +123,7 @@ var getDataChunk = function() {
 }
 
 var setCameraExtent = function() {
-	extent = map.getView().calculateExtent(map.getSize());
+	var extent = map.getView().calculateExtent(map.getSize());
 	
 	//Camera bounds
 	camera.left = extent[0];
@@ -163,9 +159,11 @@ var createMesh = function(maxSize) {
 var setupTimeBar = function() {
 	$('.clickable').height($('#buttons').height());
 	$('.progress').height($('#buttons').height());
-	maxTimeBarWidth = $('.clickable').width();
 	
 	$('.clickable').bind('click', function (ev) {
+		if(typeof(particleManager) === 'undefined' || typeof(particleManager.maxTime) === 'undefined')
+			return;
+		
 		var $div = $(ev.target);
 
 		var offset = $div.offset();
@@ -176,21 +174,21 @@ var setupTimeBar = function() {
 		else if(factor > 1)
 			factor = 1;
 		
-		animationTime = factor * maxAnimationTime;
+		animationTime = factor * particleManager.maxTime;
 	});
 }
 
 var setupWebgl = function() {
 	var vertexShader = $('#vertexShader')[0].textContent;
 	var fragmentShader = $('#fragmentShader')[0].textContent;
-	loader = new THREE.TextureLoader();
+	var loader = new THREE.TextureLoader();
 	
 	material = new THREE.RawShaderMaterial({
 		uniforms: {
 			texture: { type: "t", value: loader.load( "images/spark1.png" ) },
 			time: { type: 'f', value: 0.0 },
-			scale: { type: 'f', value: $('#overlay').height()/20 },
-			mode: { type: 'i', value: 0 }
+			scale: { type: 'f', value: $('#overlay').height()/25 },
+			heatmap: { type: 'i', value: 0 }
 		},
 		depthTest: false,
 		transparent: true,
@@ -225,10 +223,11 @@ var showLoading = function(b) {
 }
 
 var updateTimeBar = function() {
-	newTimeBarWidth = animationTime/maxAnimationTime * maxTimeBarWidth;
-	if(newTimeBarWidth > maxTimeBarWidth)
-		newTimeBarWidth = maxTimeBarWidth;
-	$('.progress').width(newTimeBarWidth);
+	var maxTimeBarWidth = $('.clickable').width();
+	var timeBarFilledWidth = animationTime/particleManager.maxTime * maxTimeBarWidth;
+	if(timeBarFilledWidth > maxTimeBarWidth)
+		timeBarFilledWidth = maxTimeBarWidth;
+	$('.progress').width(timeBarFilledWidth);
 }
 
 var reset = function() {
@@ -249,7 +248,7 @@ var start = function() {
 		$("#startStop").css("fontSize", "70%");
 		
 		$('.progress').css('background', 'green');
-		if(animationTime >= maxAnimationTime)
+		if(animationTime >= particleManager.maxTime)
 			reset();
 
 		prevRealTime = new Date().getTime();
@@ -287,17 +286,36 @@ var faster = function() {
 
 // 0: normal
 // 1: heatmap
-var toggleMode = function() {
-	switch(mode){
+var toggleHeatMap = function() {
+	if(typeof(blendingMode) != 'number')
+		blendingMode = 0;
+	else
+		blendingMode = 1 - blendingMode;	//flip between 0 and 1
+	
+	switch(blendingMode){
 		case 0:
 			mode = 1;
-			material.uniforms[ 'mode' ].value = 1;
+			material.uniforms[ 'heatmap' ].value = 1;
 			material.blending = THREE.AdditiveBlending;
 			break;
 		case 1:
 			mode = 0;
-			material.uniforms[ 'mode' ].value = 0;
+			material.uniforms[ 'heatmap' ].value = 0;
 			material.blending = THREE.NormalBlending;
+			break;
+	}
+}
+
+var setMapProvider = function(provider) {
+	switch(provider){
+		case '0':
+			
+			break;
+		case '1':
+			map.getLayers().removeAt(0);
+			map.setView(googleMap.view);
+			googleMap.element.hidden = false;
+			googleMap.map.controls[google.maps.ControlPosition.TOP_LEFT].push(document.getElementById('map'));
 			break;
 	}
 }
@@ -312,7 +330,6 @@ var onResize = function( event ) {
 	$('.progress').height($('#buttons').height());
 	
 	renderer.setSize(width, height);
-	maxTimeBarWidth = $('.clickable').width();
 	
 	var scale = $('#overlay').height()/20;
 	if(material != undefined && material.uniforms != undefined)
@@ -322,20 +339,40 @@ var onResize = function( event ) {
 
 // ************ MAP ************
 var setupMap = function() {
-	fromProj = new ol.proj.Projection({ code: "EPSG:4326" });   // Transform from WGS 1984
-    toProj   = new ol.proj.Projection({ code: "EPSG:900913" }); // to Spherical Mercator Projection
+	var gmap = new google.maps.Map(document.getElementById('gmap'), {
+		disableDefaultUI: true,
+		keyboardShortcuts: false,
+		draggable: false,
+		disableDoubleClickZoom: true,
+		scrollwheel: false,
+		streetViewControl: false
+	});
+
+	var gView = new ol.View({
+		// make sure the view doesn't go beyond the 22 zoom levels of Google Maps
+		maxZoom: 21
+	});
+	gView.on('change:center', function() {
+		var center = ol.proj.transform(gView.getCenter(), 'EPSG:3857', 'EPSG:4326');
+		gmap.setCenter(new google.maps.LatLng(center[1], center[0]));
+	});
+	gView.on('change:resolution', function() {
+		gmap.setZoom(gView.getZoom());
+	});
+
+	gView.setCenter([0, 0]);
+	gView.setZoom(1);
+	
+	osmView = new ol.View({
+		center: [0, 0],
+		zoom: 2
+	});
+	
+	var olMapDiv = document.getElementById('map');
 	
 	map = new ol.Map({
-		layers: [
-			new ol.layer.Tile({
-				preload: Infinity,
-				source: new ol.source.OSM()
-			})
-		],
-		view: new ol.View({
-			center: [0, 0],
-			zoom: 2
-		}),
+		layers: useGoogleMaps ? [] : [new ol.layer.Tile({preload: Infinity, source: new ol.source.OSM()})],
+		view: useGoogleMaps ? gView : osmView,
 		loadTilesWhileInteracting: true,
 		interactions: ol.interaction.defaults({
 			dragPan: false,
@@ -344,9 +381,18 @@ var setupMap = function() {
 			new ol.interaction.DragPan({kinetic: false}),
 			new ol.interaction.MouseWheelZoom({duration: 0})
 		]),
-		target: 'map'
+		target: olMapDiv
 	});
+	
+	if(useGoogleMaps)
+		gmap.controls[google.maps.ControlPosition.TOP_LEFT].push(olMapDiv);
+	else
+		document.getElementById("gmap").hidden=true;
 }
+
+
+fromProj = new ol.proj.Projection({ code: "EPSG:4326" });   // Transform from WGS 1984
+toProj   = new ol.proj.Projection({ code: "EPSG:900913" }); // to Spherical Mercator Projection
 
 var transf = function(lon, lat) {
 	return ol.proj.transform([lat, lon], fromProj, toProj);

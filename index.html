@@ -10,6 +10,7 @@
 <script src="js/lib/jquery-1.11.2.min.js"></script>
 <script src="js/lib/file-navigator.min.js"></script>
 <script src="js/lib/line-navigator.min.js"></script>
+<script src="http://maps.google.com/maps/api/js?key=AIzaSyCuyw0-pzifT7NN3DmzolqUV4exT-akqWY"></script>
 
 <script src="js/main.js"></script>
 <script src="js/structures.js"></script>
@@ -29,7 +30,7 @@
 	
 	uniform float time;
 	uniform float scale;
-	uniform int mode;
+	uniform int heatmap;
 	
 	varying vec3 unpackedColor;
 	varying float alphaVar;
@@ -55,7 +56,7 @@
 		unpackedColor = unpackColor(color);
 		alphaVar = alpha;
 		
-		if(mode == 0){
+		if(heatmap == 0){
 			modeVar = 0.0;
 			gl_PointSize = (scale * 0.35) * size;
 		}
@@ -105,11 +106,12 @@
 	
 	<div id="taskbar">
 		<input id="hidden_add_data" class="hidden_button" type="file" name="file" id="file" multiple>
-		<div id="visible_add_data" class="visible_button" type="file">Add data (can select multiple files at once)</div>
-		<div class="visible_button" onclick="toggleMode()">Toggle heatmap</div>
+		<div id="visible_add_data" class="visible_button" type="file">Add data</div>
+		<div class="visible_button" onclick="toggleHeatMap()">Toggle heatmap</div>
 	</div>
 
 	<div id="map" class="mainArea" ></div>
+	<div id="gmap" class="mainArea" ></div>
 	<div id="overlay" class="mainArea" ></div>
 	
 	<div id="buttons">
