@@ -1,4 +1,3 @@
-var useGoogleMaps = false;
 var play = false;
 var ready = false;
 
@@ -19,6 +18,10 @@ var fromProj, toProj;
 
 
 var init = function() {
+	if(localStorage.getItem("useOSM") == 1) {
+		document.getElementById('map_provider').value = 1;
+	}
+	
 	$("#visible_add_data").click(function() {
 		$("#hidden_add_data").trigger("click");
 	});
@@ -306,6 +309,15 @@ var toggleHeatMap = function() {
 	}
 }
 
+var setMapProvider = function(a) {
+	if(a == '1')
+		localStorage.setItem("useOSM", 1)
+	else
+		localStorage.removeItem("useOSM")
+	
+	window.location.href = '';	//refresh page
+}
+
 
 // ************ EVENTS ************
 var onResize = function( event ) {
@@ -356,9 +368,11 @@ var setupMap = function() {
 	
 	var olMapDiv = document.getElementById('map');
 	
+	var useOSM = localStorage.getItem("useOSM") == 1;
+	
 	map = new ol.Map({
-		layers: useGoogleMaps ? [] : [new ol.layer.Tile({preload: Infinity, source: new ol.source.OSM()})],
-		view: useGoogleMaps ? gView : osmView,
+		layers: useOSM ? [new ol.layer.Tile({preload: Infinity, source: new ol.source.OSM()})] : [],
+		view: useOSM ? osmView : gView,
 		loadTilesWhileInteracting: true,
 		interactions: ol.interaction.defaults({
 			dragPan: false,
@@ -370,10 +384,11 @@ var setupMap = function() {
 		target: olMapDiv
 	});
 	
-	if(useGoogleMaps)
-		gmap.controls[google.maps.ControlPosition.TOP_LEFT].push(olMapDiv);
-	else
+	if(useOSM)
 		document.getElementById("gmap").hidden=true;
+	else
+		gmap.controls[google.maps.ControlPosition.TOP_LEFT].push(olMapDiv);
+		
 }
 
 

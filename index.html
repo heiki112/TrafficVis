@@ -108,6 +108,10 @@
 		<input id="hidden_add_data" class="hidden_button" type="file" name="file" id="file" multiple>
 		<div id="visible_add_data" class="visible_button" type="file">Add data</div>
 		<div class="visible_button" onclick="toggleHeatMap()">Toggle heatmap</div>
+		<select id="map_provider" onchange="setMapProvider(this.value)">
+			<option value=0>Google Maps</option>
+			<option value=1>OpenStreetMap</option>
+		</select>
 	</div>
 
 	<div id="map" class="mainArea" ></div>
