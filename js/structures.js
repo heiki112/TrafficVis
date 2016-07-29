@@ -27,9 +27,9 @@ var ParticleManager = function() {
 		}
 		catch(err) { console.log(err); }
 		if(obj){
-			if(typeof(obj.pid) != 'undefined') {
-				var id = obj.pid.toString();
-				delete obj.pid;
+			if(typeof(obj.lat) != 'undefined') {
+				var id = obj.id.toString();
+				delete obj.id;
 				if(typeof(self.particleMap[id]) == 'undefined') {
 					self.particles.push({coordTimes: []});
 					self.particleMap[id] = self.particles[self.particles.length - 1];
@@ -153,7 +153,7 @@ var ParticleManager = function() {
 					chunkArray.push(particle.coordTimes[slot+1].t);
 					
 					chunkArray.push(packColor(particle.col));
-					chunkArray.push(particle.coordTimes[slot].a);
+					chunkArray.push(particle.a);
 					
 					chunkArray.push(particle.s);
 					chunkArray.push(particle.z);
