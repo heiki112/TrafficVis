@@ -25,7 +25,7 @@ var ParticleManager = function() {
 		try {
 			obj = JSON.parse(data.toLowerCase());
 		}
-		catch(err) {}
+		catch(err) { console.log(err); }
 		if(obj){
 			if(typeof(obj.pid) != 'undefined') {
 				var id = obj.pid.toString();
@@ -66,20 +66,21 @@ var ParticleManager = function() {
 					self.particleMap[id] = self.particles[self.particles.length - 1];
 				}
 				
-				self.particleMap[id].col = obj.c;
-				self.particleMap[id].size = obj.s;
-				self.particleMap[id].z = obj.z;
+				self.particleMap[id].col = obj.c || {
+					r: 230,
+					g: 50,
+					b: 0
+				};
+				self.particleMap[id].a = obj.a || 1.0;
+				
+				self.particleMap[id].s = obj.s || 1.0;
+				self.particleMap[id].z = obj.z || 0.0;
+				self.particleMap[id].m = obj.m || 0;
 			}
 		}
-		
-		//Array.prototype.push.apply(self.particles, data.particles);
 	}
 	
 	ParticleManager.prototype.createChunks = function() {
-		self.chunkTime = Math.floor(200000000/self.particles.length);
-		if(self.chunkTime < 5000)
-			self.chunkTime = 5000;
-		
 		self.maxTime -= self.startTime;
 		firstPass(0);
 	}
@@ -139,18 +140,6 @@ var ParticleManager = function() {
 		var chunkArray = [];
 		for(var i = 0; i < self.particles.length; i++) {
 			var particle = self.particles[i];
-			if(typeof(particle.col) == 'undefined')
-				particle.col = {
-					r: 230,
-					g: 50,
-					b: 0
-				};
-				
-			if(typeof(particle.size) == 'undefined')
-				particle.size = 1.0;
-			
-			if(typeof(particle.z) == 'undefined')
-				particle.z = 0.0;
 			
 			var slot = searchTimeSlot(i, chunkCounter*self.chunkTime);
 			if(typeof(slot) != 'undefined') {
@@ -164,10 +153,11 @@ var ParticleManager = function() {
 					chunkArray.push(particle.coordTimes[slot+1].t);
 					
 					chunkArray.push(packColor(particle.col));
-					chunkArray.push(particle.coordTimes[slot].a || 1.0);
+					chunkArray.push(particle.coordTimes[slot].a);
 					
-					chunkArray.push(particle.size);
+					chunkArray.push(particle.s);
 					chunkArray.push(particle.z);
+					chunkArray.push(particle.m);
 
 					slot++;
 				}

@@ -10,6 +10,7 @@ attribute float color;
 attribute float alpha;
 attribute float size;
 attribute float zValue;
+attribute float mode;
 
 uniform float time;
 uniform float scale;
@@ -17,6 +18,7 @@ uniform int heatmap;
 
 varying vec3 unpackedColor;
 varying float alphaVar;
+varying float heatmapVar;
 varying float modeVar;
 
 const vec2 zero = vec2(0.0, 0.0);
@@ -40,11 +42,12 @@ void main() {
 	alphaVar = alpha;
 	
 	if(heatmap == 0){
-		modeVar = 0.0;
+		modeVar = mode;
+		heatmapVar = 0.0;
 		gl_PointSize = (scale * 0.35) * size;
 	}
 	else {
-		modeVar = 1.0;
+		heatmapVar = 1.0;
 		gl_PointSize = scale * size;
 	}
 	

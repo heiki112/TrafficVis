@@ -155,7 +155,7 @@ var setCameraExtent = function() {
 var createMesh = function(maxSize) {
 	var geometry = new THREE.InstancedBufferGeometry();
 	
-	interleavedBuffer = new THREE.InterleavedBuffer( new Float32Array( maxSize ), 10 );
+	interleavedBuffer = new THREE.InterleavedBuffer( new Float32Array( maxSize ), 11 );
 	
 	geometry.addAttribute( 'position', new THREE.InterleavedBufferAttribute( interleavedBuffer, 3, 0 ) );
 	geometry.addAttribute( 'positionNext', new THREE.InterleavedBufferAttribute( interleavedBuffer, 3, 3 ) );
@@ -165,6 +165,7 @@ var createMesh = function(maxSize) {
 	
 	geometry.addAttribute( 'size', new THREE.InterleavedBufferAttribute( interleavedBuffer, 1, 8 ) );
 	geometry.addAttribute( 'zValue', new THREE.InterleavedBufferAttribute( interleavedBuffer, 1, 9 ) );
+	geometry.addAttribute( 'mode', new THREE.InterleavedBufferAttribute( interleavedBuffer, 1, 10 ) );
 	
 	if(typeof particleMesh != 'undefined'){
 		scene.remove(particleMesh);
@@ -212,7 +213,7 @@ var setupWebgl = function() {
 			scale: { type: 'f', value: $('#overlay').height()/25 },
 			heatmap: { type: 'i', value: 0 }
 		},
-		depthTest: false,
+		depthWrite: false,
 		transparent: true,
 		vertexShader: vertexShader,
 		fragmentShader: fragmentShader
