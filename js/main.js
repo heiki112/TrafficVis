@@ -375,7 +375,7 @@ var setupMap = function() {
 	});
 
 	gView.setCenter([0, 0]);
-	gView.setZoom(1);
+	gView.setZoom(2);
 	
 	osmView = new ol.View({
 		center: [0, 0],
