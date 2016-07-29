@@ -201,7 +201,6 @@ var setupWebgl = function() {
 			scale: { type: 'f', value: $('#overlay').height()/25 },
 			heatmap: { type: 'i', value: 0 }
 		},
-		depthWrite: false,
 		transparent: true,
 		vertexShader: vertexShader,
 		fragmentShader: fragmentShader

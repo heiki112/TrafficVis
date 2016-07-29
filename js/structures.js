@@ -106,7 +106,7 @@ var ParticleManager = function() {
 		if(idLimit > self.particles.length)
 			idLimit = self.particles.length;
 		
-		for(var i = particleId; i < idLimit; i++) {
+		for(var i = particleId; i < idLimit; i++) {	//Check if particle coordinate-time array is sorted, sort if needed
 			var particle = self.particles[i];
 			
 			var sorted = true;
@@ -118,6 +118,9 @@ var ParticleManager = function() {
 			if(!sorted)
 				particle.coordTimes.sort( function(ct1, ct2) { return ct1.t - ct2.t } );
 		}
+		
+		self.particles.sort( function(p1, p2) { return p1.z - p2.z } );	//Sort particles based on Z-value for correct rendering (lower Z-value particles in the beginning -> rendered first)
+		
 		setTimeout(function() {
 			if(idLimit < self.particles.length)
 				firstPass(idLimit);
