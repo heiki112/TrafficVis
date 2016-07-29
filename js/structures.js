@@ -2,11 +2,11 @@
 var ParticleManager = function() {
 	var self = this;
 	
-	this.chunkTime = 20000; //default chunk time size, in milliseconds
+	this.chunkTime = 30000; //default chunk time size, in milliseconds
 	this.currentChunkTime;
 	
 	this.ready = false;
-	this.minTime = Number.MAX_SAFE_INTEGER;
+	this.startTime = Number.MAX_SAFE_INTEGER;
 	this.maxTime = 0;
 	this.minLat = Number.MAX_SAFE_INTEGER;
 	this.minLon = Number.MAX_SAFE_INTEGER;
@@ -42,9 +42,9 @@ var ParticleManager = function() {
 				//max time
 				if(obj.t > self.maxTime)
 					self.maxTime = obj.t;
-				//min time
-				if(obj.t < self.minTime)
-					self.minTime = obj.t;
+				//start time
+				if(obj.t < self.startTime)
+					self.startTime = obj.t;
 				
 				//map bounds
 				if(obj.lat < self.minLat)
@@ -80,7 +80,7 @@ var ParticleManager = function() {
 		if(self.chunkTime < 5000)
 			self.chunkTime = 5000;
 		
-		self.maxTime -= self.minTime;
+		self.maxTime -= self.startTime;
 		firstPass(0);
 	}
 	
@@ -110,7 +110,7 @@ var ParticleManager = function() {
 			
 			var sorted = true;
 			for(var j = 0; j < particle.coordTimes.length; j++){
-				particle.coordTimes[j].t -= self.minTime;
+				particle.coordTimes[j].t -= self.startTime;
 				if(j > 0 && particle.coordTimes[j-1].t > particle.coordTimes[j].t)
 					sorted = false;
 			}

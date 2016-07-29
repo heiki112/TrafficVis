@@ -8,104 +8,19 @@
 <script src="js/lib/three.min.js"></script>
 <script src="js/lib/ol.js"></script>
 <script src="js/lib/jquery-1.11.2.min.js"></script>
-<script src="js/lib/file-navigator.min.js"></script>
-<script src="js/lib/line-navigator.min.js"></script>
+<script src="js/lib/file-navigator.js"></script>
+<script src="js/lib/line-navigator.js"></script>
 <script src="http://maps.google.com/maps/api/js?key=AIzaSyCuyw0-pzifT7NN3DmzolqUV4exT-akqWY"></script>
 
 <script src="js/main.js"></script>
 <script src="js/structures.js"></script>
-
-<script id="vertexShader" type="x-shader/x-vertex">
-	precision highp float;
-	precision mediump int;
-	uniform mat4 modelViewMatrix;
-	uniform mat4 projectionMatrix;
-
-	attribute vec3 position;		//position-time: lon, lat, time
-	attribute vec3 positionNext;	//position-time: lon, lat, time
-	attribute float color;
-	attribute float alpha;
-	attribute float size;
-	attribute float zValue;
-	
-	uniform float time;
-	uniform float scale;
-	uniform int heatmap;
-	
-	varying vec3 unpackedColor;
-	varying float alphaVar;
-	varying float modeVar;
-	
-	const vec2 zero = vec2(0.0, 0.0);
-	const vec4 outOfBounds = vec4(2.0, 0.0, 0.0, 1.0);
-	
-	vec3 unpackColor(float f) {
-		vec3 color;
-		color.b = floor(f / 256.0 / 256.0);
-		color.g = floor((f - color.b * 256.0 * 256.0) / 256.0);
-		color.r = floor(f - color.b * 256.0 * 256.0 - color.g * 256.0);
-		// now we have a vec3 with the 3 components in range [0..256]. Let's normalize it!
-		return color / 256.0;
-	}
-	
-	void main() {
-		if(time < position.z || time > positionNext.z || position.xy == zero || positionNext.xy == zero) {
-			gl_Position = outOfBounds;
-			return;
-		}
-		unpackedColor = unpackColor(color);
-		alphaVar = alpha;
-		
-		if(heatmap == 0){
-			modeVar = 0.0;
-			gl_PointSize = (scale * 0.35) * size;
-		}
-		else {
-			modeVar = 1.0;
-			gl_PointSize = scale * size;
-		}
-		
-		float timeDiff = positionNext.z - position.z;
-		if(timeDiff == 0.0){
-			gl_Position = projectionMatrix * modelViewMatrix * vec4(position.x, position.y, 0.0, 1.0);
-		}
-		else{
-			float interpolate = (time - position.z)/(timeDiff);
-			vec3 mapPos = vec3(mix(position.x, positionNext.x, interpolate), mix(position.y, positionNext.y, interpolate), zValue);
-			gl_Position = projectionMatrix * modelViewMatrix * vec4(mapPos, 1.0);
-		}
-	}
-	
-</script>
-<script id="fragmentShader" type="x-shader/x-fragment">
-	precision highp float;
-	precision mediump int;
-	
-	varying float alphaVar;
-	varying float modeVar;
-	
-	uniform sampler2D texture;
-	varying vec3 unpackedColor;
-	
-	void main() {
-		if(modeVar == 0.0) {
-			vec2 remap = (gl_PointCoord - 0.5) * 2.0;
-			float dist = pow(remap.x, 2.0) + pow(remap.y, 2.0);
-			if(dist < 1.0)
-				gl_FragColor = vec4(unpackedColor, alphaVar);
-		}
-		else
-			gl_FragColor = vec4(0.9, 0.2, 0.0, alphaVar) * texture2D( texture, gl_PointCoord );
-	}
-	
-</script>
 
 </head>
 
 <body onload="init()">
 	
 	<div id="taskbar">
-		<input id="hidden_add_data" class="hidden_button" type="file" name="file" id="file" multiple>
+		<input id="hidden_add_data" class="hidden_button" type="file" name="file" id="file">
 		<div id="visible_add_data" class="visible_button" type="file">Add data</div>
 		<div class="visible_button" onclick="toggleHeatMap()">Toggle heatmap</div>
 		<select id="map_provider" onchange="setMapProvider(this.value)">
@@ -124,6 +39,7 @@
 		<button id="startStop" onclick="startStop()">&#9658</button>
 		<button id="faster" onclick="faster()">&#9658&#9658</button>
 		<div id="speed">Playback speed: 1x</div>
+		<div id="time">Time: </div>
 	</div>
 	
 	<div class='clickable'>

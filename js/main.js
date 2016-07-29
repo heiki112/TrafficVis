@@ -9,8 +9,7 @@ var timestep = 1; //speed
 var particleManager;
 
 //WebGL things
-var renderer, scene, camera, particleMesh, material;
-var interleavedBuffer;
+var renderer, scene, camera, particleMesh, material, vertexShader, fragmentShader, interleavedBuffer;
 
 //Map variables
 var map, googleMap, openStreetMap;
@@ -21,6 +20,28 @@ var init = function() {
 	if(localStorage.getItem("useOSM") == 1) {
 		document.getElementById('map_provider').value = 1;
 	}
+	
+	//Get vertex shader from file
+	$.ajax({
+		type: "GET", 
+		url: "/shaders/vertex.shader",
+		success: function(data) {
+			vertexShader = data;
+		}, error: function (data) {
+			console.log("Failed to load file ", path);
+		}
+    });
+	
+	//Get fragment shader from file
+	$.ajax({
+		type: "GET", 
+		url: "/shaders/fragment.shader",
+		success: function(data) {
+			fragmentShader = data;
+		}, error: function (data) {
+			console.log("Failed to load file ", path);
+		}
+    });
 	
 	$("#visible_add_data").click(function() {
 		$("#hidden_add_data").trigger("click");
@@ -40,7 +61,7 @@ var init = function() {
 
 		particleManager = new ParticleManager();
 		
-		addData(this.files, 0);
+		readFile(this.files[0]);
 	};
 	
 	setupTimeBar();
@@ -48,13 +69,8 @@ var init = function() {
 	setupWebgl();
 }
 
-var addData = function(data, fileCounter) {
-	if(fileCounter >= data.length) {
-		startMainLoop();
-		return;
-	}
-	
-	var navigator = new FileNavigator(data[fileCounter]);
+var readFile = function(file) {
+	var navigator = new FileNavigator(file);
 
 	navigator.readSomeLines(0, function linesReadHandler(err, index, lines, eof, progress) {
 		console.log('Reading file progress: ', progress);
@@ -70,7 +86,7 @@ var addData = function(data, fileCounter) {
 			}, 0)
 		}
 		else {
-			addData(data, ++fileCounter);
+			startMainLoop();
 		}
 	});
 }
@@ -182,8 +198,11 @@ var setupTimeBar = function() {
 }
 
 var setupWebgl = function() {
-	var vertexShader = $('#vertexShader')[0].textContent;
-	var fragmentShader = $('#fragmentShader')[0].textContent;
+	if(typeof(vertexShader) === 'undefined' || typeof(fragmentShader) === 'undefined') {
+		setTimeout(setupWebgl, 500);
+		return;
+	}
+	
 	var loader = new THREE.TextureLoader();
 	
 	material = new THREE.RawShaderMaterial({
@@ -202,7 +221,7 @@ var setupWebgl = function() {
 	var width = $('#overlay').width();
 	var height = $('#overlay').height();
 
-	var $container = $('#overlay');
+	var container = $('#overlay');
 
 	renderer = new THREE.WebGLRenderer({ alpha: true, preserveDrawingBuffer: true });
 	camera = new THREE.OrthographicCamera( -10, 10, 10, -10, -1, 1 );
@@ -214,7 +233,7 @@ var setupWebgl = function() {
 	
 	window.addEventListener( 'resize', onResize, false );
 
-	$container.append(renderer.domElement);
+	container.append(renderer.domElement);
 }
 
 // ************ CONTROLS ************
@@ -231,6 +250,14 @@ var updateTimeBar = function() {
 	if(timeBarFilledWidth > maxTimeBarWidth)
 		timeBarFilledWidth = maxTimeBarWidth;
 	$('.progress').width(timeBarFilledWidth);
+	
+	var timeString;
+	if(particleManager.startTime <= 1000)	//If data time starts from 0 or 1000 display it in seconds
+		timeString = millisecToHHMMSS(animationTime);
+	else
+		timeString = new Date(animationTime + particleManager.startTime).toUTCString();
+	
+	$("#time").text("Time: " + timeString)
 }
 
 var reset = function() {
@@ -397,4 +424,16 @@ toProj   = new ol.proj.Projection({ code: "EPSG:900913" }); // to Spherical Merc
 
 var transf = function(lon, lat) {
 	return ol.proj.transform([lat, lon], fromProj, toProj);
+}
+
+var millisecToHHMMSS = function (ms) {
+    var sec_num = parseInt(ms/1000, 10); // don't forget the second param
+    var hours   = Math.floor(sec_num / 3600);
+    var minutes = Math.floor((sec_num - (hours * 3600)) / 60);
+    var seconds = sec_num - (hours * 3600) - (minutes * 60);
+
+    if (hours   < 10) {hours   = "0"+hours;}
+    if (minutes < 10) {minutes = "0"+minutes;}
+    if (seconds < 10) {seconds = "0"+seconds;}
+    return hours+':'+minutes+':'+seconds;
 }
