@@ -22,26 +22,14 @@ var init = function() {
 	}
 	
 	//Get vertex shader from file
-	$.ajax({
-		type: "GET", 
-		url: "/shaders/vertex.shader",
-		success: function(data) {
-			vertexShader = data;
-		}, error: function (data) {
-			console.log("Failed to load file ", path);
-		}
-    });
+	$.get(window.location.pathname + "shaders/vertex.shader", function(data) {
+		vertexShader = data;
+	});
 	
 	//Get fragment shader from file
-	$.ajax({
-		type: "GET", 
-		url: "/shaders/fragment.shader",
-		success: function(data) {
-			fragmentShader = data;
-		}, error: function (data) {
-			console.log("Failed to load file ", path);
-		}
-    });
+	$.get(window.location.pathname + "shaders/fragment.shader", function(data) {
+		fragmentShader = data;
+	});
 	
 	$("#visible_add_data").click(function() {
 		$("#hidden_add_data").trigger("click");

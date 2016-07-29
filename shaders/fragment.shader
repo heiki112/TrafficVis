@@ -17,5 +17,5 @@ void main() {
 			gl_FragColor = vec4(unpackedColor, alphaVar);
 	}
 	else
-		gl_FragColor = vec4(0.9, 0.2, 0.0, alphaVar) * texture2D( texture, gl_PointCoord );
+		gl_FragColor = vec4(0.9, 0.2, 0.0, 1.0) * texture2D( texture, gl_PointCoord );
 }
