@@ -49,7 +49,7 @@ var init = function() {
 
 		particleManager = new ParticleManager();
 		
-		readFile(this.files[0]);
+		readStyles(this.files);
 	};
 	
 	setupTimeBar();
@@ -57,7 +57,28 @@ var init = function() {
 	setupWebgl();
 }
 
-var readFile = function(file) {
+var readStyles = function(files) {
+	if(files.length == 0 || files.length > 2)
+		return;
+	else if(files.length == 1) {	//No styles file specified, only objects
+		readObjects(files[0]);
+		return;
+	}
+	
+	var index;
+	if(files[0].name.split('.')[1] == "style")
+		index = 0;
+	else
+		index = 1;
+	var reader = new FileReader();
+	reader.readAsText(files[index]);
+	reader.onload = function(evt) {
+		particleManager.setStyles(JSON.parse(evt.target.result));
+		readObjects(index == 0 ? files[1] : files[0]);
+    };
+}
+
+var readObjects = function(file) {
 	var navigator = new FileNavigator(file);
 
 	navigator.readSomeLines(0, function linesReadHandler(err, index, lines, eof, progress) {
@@ -240,10 +261,10 @@ var updateTimeBar = function() {
 	$('.progress').width(timeBarFilledWidth);
 	
 	var timeString;
-	if(particleManager.startTime <= 1000)	//If data time starts from 0 or 1000 display it in seconds
-		timeString = millisecToHHMMSS(animationTime);
-	else
+	if(particleManager.timeAsDate)
 		timeString = new Date(animationTime + particleManager.startTime).toUTCString();
+	else
+		timeString = millisecToHHMMSS(animationTime);	//If data time starts from 0 or 1000 display it in seconds
 	
 	$("#time").text("Time: " + timeString)
 }

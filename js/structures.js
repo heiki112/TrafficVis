@@ -6,6 +6,7 @@ var ParticleManager = function() {
 	this.currentChunkTime;
 	
 	this.ready = false;
+	this.timeAsDate = false;
 	this.startTime = Number.MAX_SAFE_INTEGER;
 	this.maxTime = 0;
 	this.minLat = Number.MAX_SAFE_INTEGER;
@@ -15,69 +16,76 @@ var ParticleManager = function() {
 	this.maxChunkSize = 0;
 	this.particles = [];
 	this.particleMap = {};
+	this.styles;
 	
 	//position-time data chunks, lists of Float32Array that are given into interleavedBuffer
 	this.chunks = [];
 	
 	//"Public" functions
+	ParticleManager.prototype.setStyles = function(styles) {
+		self.styles = styles;
+	}
+	
 	ParticleManager.prototype.addData = function(data) {
-		var obj;
-		try {
-			obj = JSON.parse(data.toLowerCase());
+		var fields = data.split(",");
+		var id = fields[0].trim();
+		var time = fields[1].trim();
+		var lat = fields[2].trim();
+		var lon = fields[3].trim();
+		var stopAttr = fields[4].trim();
+		var styleId = fields[5].trim();
+		
+		if(typeof(self.particleMap[id]) == 'undefined') {
+			self.particles.push({coordTimes: []});
+			self.particleMap[id] = self.particles[self.particles.length - 1];
+			
+			var styleExists = false;
+			if(typeof(self.styles) != 'undefined' && typeof(self.styles[styleId]) != 'undefined')
+				styleExists = true;
+			
+			self.particleMap[id].col = {
+				r: styleExists ? self.styles[styleId].r : 230,
+				g: styleExists ? self.styles[styleId].g : 50,
+				b: styleExists ? self.styles[styleId].b : 0
+			};
+			self.particleMap[id].a = styleExists ? self.styles[styleId].a : 1.0;
+			self.particleMap[id].s = styleExists ? self.styles[styleId].size : 1.0;
+			self.particleMap[id].z = styleExists ? self.styles[styleId].z : 0.0;
+			self.particleMap[id].m = styleExists ? self.styles[styleId].mode : 0;
 		}
-		catch(err) { console.log(err); }
-		if(obj){
-			if(typeof(obj.lat) != 'undefined') {
-				var id = obj.id.toString();
-				delete obj.id;
-				if(typeof(self.particleMap[id]) == 'undefined') {
-					self.particles.push({coordTimes: []});
-					self.particleMap[id] = self.particles[self.particles.length - 1];
-				}
-				
-				var lonLat = transf(obj.lon, obj.lat);
-				obj.lon = lonLat[0];
-				obj.lat = lonLat[1];
-				
-				//max time
-				if(obj.t > self.maxTime)
-					self.maxTime = obj.t;
-				//start time
-				if(obj.t < self.startTime)
-					self.startTime = obj.t;
-				
-				//map bounds
-				if(obj.lat < self.minLat)
-					self.minLat = obj.lat;
-				if(obj.lat > self.maxLat)
-					self.maxLat = obj.lat;
-				if(obj.lon < self.minLon)
-					self.minLon = obj.lon;
-				if(obj.lon > self.maxLon)
-					self.maxLon = obj.lon;
-				
-				self.particleMap[id].coordTimes.push(obj);
-			}
-			else {
-				var id = obj.id.toString();
-				obj.id = id;
-				if(typeof(self.particleMap[id]) == 'undefined') {
-					self.particles.push({coordTimes: []});
-					self.particleMap[id] = self.particles[self.particles.length - 1];
-				}
-				
-				self.particleMap[id].col = obj.c || {
-					r: 230,
-					g: 50,
-					b: 0
-				};
-				self.particleMap[id].a = obj.a || 1.0;
-				
-				self.particleMap[id].s = obj.s || 1.0;
-				self.particleMap[id].z = obj.z || 0.0;
-				self.particleMap[id].m = obj.m || 0;
-			}
+		
+		var lonLat = transf(Number(lat), Number(lon));
+		lon = lonLat[0];
+		lat = lonLat[1];
+		
+		if(!$.isNumeric(time)) {	//If time is given as a dateTime string convert it to unix timestamp. Otherwise leave it as a long
+			self.timeAsDate = true;
+			time = Date.parse(time);
 		}
+		
+		//max time
+		if(time > self.maxTime)
+			self.maxTime = time;
+		//start time
+		if(time < self.startTime)
+			self.startTime = time;
+		
+		//map bounds
+		if(lat < self.minLat)
+			self.minLat = lat;
+		if(lat > self.maxLat)
+			self.maxLat = lat;
+		if(lon < self.minLon)
+			self.minLon = lon;
+		if(lon > self.maxLon)
+			self.maxLon = lon;
+		
+		self.particleMap[id].coordTimes.push(
+		{
+			t: time,
+			lat: lat,
+			lon: lon,
+		});
 	}
 	
 	ParticleManager.prototype.createChunks = function() {
@@ -133,8 +141,6 @@ var ParticleManager = function() {
 	}
 	
 	var createChunksInner = function(chunkCounter) {
-		console.log('ParticleManager createChunksInner: ', chunkCounter);
-		
 		if(chunkCounter*self.chunkTime > self.maxTime) {
 			self.ready = true;
 			return;
