@@ -6,7 +6,7 @@ Browser-based interactive movement data visualization tool. Uses OpenLayers 3 an
 
 [Example data](http://kodu.ut.ee/~heiki112/dataCompact.zip)
 
-[Input data API description](../master/API.pdf)
+[Input data API description](../master/api2.0.pdf)
 
 To run the application first host it in a server to avoid cross-origin issues.
 For example: an easy way to do this using python 2 would be navigating to project folder (that contains index.html)
